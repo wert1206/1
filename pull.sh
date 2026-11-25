@@ -27,7 +27,7 @@ install_ccc() {
 get_kit() {
 	info "拉整包 $REPO@$BRANCH → $DIR/1-main"
 	mkdir -p "$DIR"
-	curl -kL --no-progress-meter --max-time 300 "$TAR" -o "$DIR/repo.tar.gz" || die "整包下载失败"
+	curl -kL --progress-bar --max-time 600 "$TAR" -o "$DIR/repo.tar.gz" || die "整包下载失败"
 	rm -rf "$DIR/1-main"
 	tar xzf "$DIR/repo.tar.gz" -C "$DIR" || die "解压失败"
 	rm -f "$DIR/repo.tar.gz"
