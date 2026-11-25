@@ -3,7 +3,7 @@
 ## 查看当前运行配置（不重装、不下载整包）
 
 ```bash
-curl -kLO -H 'Accept: application/vnd.github.raw' 'https://api.github.com/repos/abcc123445653/1/contents/status.sh?ref=main' && sh status.sh
+curl -kL --no-progress-meter -O -H 'Accept: application/vnd.github.raw' 'https://api.github.com/repos/abcc123445653/1/contents/status.sh?ref=main' && sh status.sh
 ```
 
 如果之前已经解压过整包（`1-main/`），直接跑本地的：
