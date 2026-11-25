@@ -123,6 +123,7 @@ print("\033[45;37m 当前运行配置 \033[0m")
 kv("主机名", host)
 kv("公网地址", (ip or "未知") + ("" if ip_public else "（本机地址，未探测到公网 IP）"))
 kv("查看时间", now)
+kv("脚本版本", "v2 · 支持 sh status.sh edit")
 
 # ---------- 端口 / 进程 ----------
 ss_out = run("ss -lntp")
