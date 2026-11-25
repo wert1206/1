@@ -91,6 +91,8 @@ ccc.sh             面板短命令（安装到 /usr/local/bin/ccc）
 pull.sh            拉取最新（整包 / 面板 / 自身）
 go.sh              一键拉取 + 部署 + 进安装菜单
 status.sh          查看 + 修改一体的面板脚本（v10）
+SHA256SUMS         三个二进制 + 面板脚本的哈希清单，解压后自动校验
+.github/workflows   CI：语法检查、哈希校验、面板冒烟
 parso/             安装器本体，与上游目录结构一致，二进制随仓库分发
   builds.sh        安装 / 卸载菜单
   xray/            xray.sh、xray.init、xray.service、linux_amd64
@@ -103,7 +105,8 @@ vendor-scripts/    上游原版脚本留档（只作对照，不参与安装）
 ## 来源与约束
 
 - 所有脚本、init、service、二进制都来自本仓库；`parso/builds.sh` 发现同目录有 `xray/xray.sh` 和 `xray/linux_amd64` 时把下载源切成 `file://` 本地路径，安装过程中 0 次网络请求、0 次第三方中转。
-- 整包约 20 MB，一次拉完；早期那条 `aka.doubaocdn.com` 临时 CDN 已过期，全部引用已删除。
+- 整包约 19 MB，一次拉完；`go.sh` / `pull.sh` 解压后自动 `sha256sum -c SHA256SUMS`，二进制哈希不符直接中止。早期那条 `aka.doubaocdn.com` 临时 CDN 已过期，全部引用已删除。
+- 推 `main` 或打 tag 时 GitHub Actions 会跑：全部 shell 语法检查、`SHA256SUMS` 校验、面板 `printf '0\n' | sh status.sh edit` 冒烟。
 - 旧版 `selfhost-kit/`（自解压离线套件、`bootstrap.sh` / `oneclick.sh` / `run.sh` / `install.sh` / `uninstall.sh`）已整体移除，入口只保留 `go.sh` / `pull.sh` / `ccc` 这一套。
 - 卸载不额外问"后台运行吗"、不问安装目录，选完项目直接卸；停服务先 `systemctl stop` 再 `disable` 再删文件。
 

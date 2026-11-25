@@ -18,6 +18,16 @@ TAR="https://codeload.github.com/$REPO/tar.gz/refs/heads/$BRANCH"
 info() { printf '\033[44;37m %s \033[0m\n' "$*"; }
 die()  { echo "错误: $*" >&2; exit 1; }
 
+verify_kit() {
+	[ -f "$DIR/1-main/SHA256SUMS" ] || return 0
+	if (cd "$DIR/1-main" && sha256sum -c SHA256SUMS >/dev/null 2>&1); then
+		echo "  → 二进制校验通过（SHA256SUMS）"
+	else
+		die "整包校验失败：$DIR/1-main 与 SHA256SUMS 不符"
+	fi
+}
+
+
 install_ccc() {
 	[ -d /usr/local/bin ] || return 0
 	src=""
@@ -44,6 +54,7 @@ get_kit() {
 	tar xzf "$DIR/repo.tar.gz" -C "$DIR" || die "解压失败"
 	rm -f "$DIR/repo.tar.gz"
 	echo "  → $DIR/1-main   $(du -sh "$DIR/1-main" 2>/dev/null | cut -f1)"
+	verify_kit
 }
 
 get_self() {

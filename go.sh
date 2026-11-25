@@ -15,6 +15,16 @@ TAR="https://codeload.github.com/$REPO/tar.gz/refs/heads/$BRANCH"
 info() { printf '\033[44;37m %s \033[0m\n' "$*"; }
 die()  { echo "错误: $*" >&2; exit 1; }
 
+verify_kit() {
+	[ -f "$DIR/1-main/SHA256SUMS" ] || return 0
+	if (cd "$DIR/1-main" && sha256sum -c SHA256SUMS >/dev/null 2>&1); then
+		echo "  → 二进制校验通过（SHA256SUMS）"
+	else
+		die "整包校验失败：$DIR/1-main 与 SHA256SUMS 不符"
+	fi
+}
+
+
 info "拉整包 $REPO@$BRANCH → $DIR/1-main"
 mkdir -p "$DIR"
 curl -kL --progress-bar --max-time 600 "$TAR" -o "$DIR/repo.tar.gz" || die "整包下载失败"
@@ -22,6 +32,7 @@ rm -rf "$DIR/1-main"
 tar xzf "$DIR/repo.tar.gz" -C "$DIR" || die "解压失败"
 rm -f "$DIR/repo.tar.gz"
 echo "  → $DIR/1-main   $(du -sh "$DIR/1-main" 2>/dev/null | cut -f1)"
+verify_kit
 
 # 部署常用入口，之后直接 ccc / sh pull.sh 就能用
 [ -f "$DIR/1-main/pull.sh" ] && cp "$DIR/1-main/pull.sh" "$DIR/pull.sh" && chmod +x "$DIR/pull.sh" && echo "  → $DIR/pull.sh"

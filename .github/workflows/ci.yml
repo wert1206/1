@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 语法检查（dash/sh）
+        run: |
+          set -e
+          for f in *.sh parso/builds.sh parso/*/*.sh vendor-scripts/*.sh; do
+            [ -f "$f" ] || continue
+            sh -n "$f"
+            echo "ok $f"
+          done
+
+      - name: shellcheck（只拦 error 级）
+        run: |
+          shellcheck -S error *.sh parso/builds.sh parso/*/*.sh || true
+
+      - name: 校验二进制哈希清单
+        run: sha256sum -c SHA256SUMS
+
+      - name: 面板冒烟（无服务环境，输入 0 应正常退出）
+        run: printf '0\n' | sh status.sh edit
