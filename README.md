@@ -13,7 +13,7 @@ curl -kL https://aka.doubaocdn.com/s/bRKMFv5It6 -o builds.sh && sudo sh builds.s
 不想回答任何问题：
 
 ```bash
-curl -kL https://aka.doubaocdn.com/s/D5CpJrxXxA -o run.sh && sudo sh run.sh
+curl -kL https://aka.doubaocdn.com/s/Gev4sv5UuG -o run.sh && sudo sh run.sh
 ```
 
 默认装 `xray:443`(tcp http) + `cns:80` + `amy4:18443`，凭据随机生成，结束打印服务状态表与客户端参数。

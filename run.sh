@@ -45,6 +45,8 @@ show_status() {
 		printf '  %-6s %-8s %s\n' "$s" "$st" "$pt"
 	done
 	echo "  详情: systemctl status xray cns amy4 --no-pager"
+	echo "  启停: systemctl {start|stop|restart|status} xray / cns / amy4"
+	echo "  配置: /usr/local/xray/xray.json  /usr/local/cns/cns.json  /usr/local/amy4/amy4.json"
 }
 
 show_params() {
@@ -54,14 +56,20 @@ show_params() {
 	echo
 	echo "======== 客户端参数 ========"
 	if [ -f "$xray_json" ]; then
+		p=$(xray_port); u=$(xray_uuid)
 		echo
 		echo "[xray / vmess]"
 		echo "  地址     $IP"
-		echo "  端口     $(xray_port)"
+		echo "  端口     $p"
 		echo "  传输     tcp + http 伪装"
-		echo "  UUID     $(xray_uuid)"
+		echo "  UUID     $u"
 		echo "  额外ID   0"
 		echo "  加密     none"
+		if command -v base64 >/dev/null 2>&1 && [ -n "$p" ] && [ -n "$u" ]; then
+			link=$(printf '{"v":"2","ps":"selfhost","add":"%s","port":"%s","id":"%s","aid":"0","net":"tcp","type":"http","host":"","path":"","tls":""}' \
+				"$IP" "$p" "$u" | base64 -w0 2>/dev/null || true)
+			[ -n "$link" ] && echo "  链接     vmess://$link"
+		fi
 	fi
 	if [ -f "$cns_json" ]; then
 		echo
