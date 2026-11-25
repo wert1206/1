@@ -14,6 +14,20 @@
 
 `xray` 是 **1.8.13 的自编译版本**（构建元数据为 `Custom`），不是官方 Release 的产物。哈希只能证明「就是你服务器上那一个」，不能证明它没有改动。
 
+## 一键入口
+
+仓库根目录有 `oneclick.sh`，两种情况都能用：
+
+```bash
+# 一、已经在仓库里
+sudo ./oneclick.sh --xray-port 443 --cns-port 80 --amy4-port 18443
+
+# 二、手上只有这一个脚本（自动克隆私有仓库再安装）
+sudo sh oneclick.sh
+```
+
+参数原样透传给 `selfhost-kit/install.sh`。第二条要求本机已配置能读这个私有仓库的 SSH 密钥；想换仓库地址用 `REPO_URL=...` 覆盖。
+
 ## 安装
 
 `bin/` 已随本仓库提交（仓库为私有）。装之前先自己验一遍：
