@@ -32,6 +32,25 @@ printf '#!/bin/sh\nexec sh /root/status.sh edit "$@"\n' > /usr/local/bin/ccc && 
 
 改完自动带时间戳备份原配置（`/usr/local/xxx/xxx.json.bak-YYYYMMDD-HHMMSS`）、重启对应服务并确认新端口确实在监听，最后刷新整屏显示新的分享链接。端口被别的进程占用会直接拦下来不让改。
 
+## 拉取最新（pull.sh）
+
+`pull.sh` 就是“从本仓库拉东西”的统一入口，三种用法：
+
+```bash
+sh /root/pull.sh          # 拉整包到 /root/1-main + 更新面板脚本 + 顺手装好 ccc
+sh /root/pull.sh status   # 只更新面板脚本 status.sh（1 个请求，实测 0.7 秒）
+sh /root/pull.sh kit      # 只拉整包（装 / 升级 parso 用）
+```
+
+第一次用先把 `pull.sh` 取下来（之后就一直用它）：
+
+```bash
+curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/pull.sh \
+  'https://api.github.com/repos/abcc123445653/1/contents/pull.sh?ref=main' && sh /root/pull.sh
+```
+
+整包走 `codeload.github.com`（约 38 MB，解压 98 MB），不经过 `api.github.com`，不会被 60 次/小时限额卡住；`status` 模式只取一个文件，限额也几乎碰不到。拉完会把 `ccc` 重新指向最新的 `status.sh`，并打印拉到的版本号（如 `v8 · 支持 edit`）。
+
 ## 一键安装 / 卸载（与上游 parso 同款菜单，文件全部来自本仓库）
 
 本仓库含两套东西：`parso/`（照上游目录结构的同款菜单安装器）和 `selfhost-kit/`（离线套件）。**来源固定、哈希校验、失败即中止。**
