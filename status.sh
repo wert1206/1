@@ -129,7 +129,7 @@ print("\033[45;37m 当前运行配置 \033[0m")
 kv("主机名", host)
 kv("公网地址", (ip or "未知") + ("" if ip_public else "（本机地址，未探测到公网 IP）"))
 kv("查看时间", now)
-kv("脚本版本", "v7 · 支持 edit（改配置/启停服务/7 查看/0 关闭）")
+kv("脚本版本", "v8 · 支持 edit（改配置/启停服务/7 查看/0 关闭）")
 
 # ---------- 端口 / 进程 ----------
 ss_out = run("ss -lntp")
@@ -875,11 +875,11 @@ if not modifiable:
 
 while True:
 	print("")
-	print("   可修改：1. xray（协议/端口/UUID）  2. cns（端口/TLS端口/加密密码/代理头域）  3. amy4（端口/ClientKey/IPv6）  4. tinyproxy（端口/认证）")
-	print("           5. 停止服务（同时关闭开机自启）")
-	print("           6. 启动服务（同时打开开机自启）")
-	print("           7. 查看当前配置（重新打印整屏）")
-	print("           0. 关闭（退出，什么都不改）")
+	print("   可修改项目：")
+	print("   1. xray（协议/端口/UUID）     2. cns（端口/密码/TLS）")
+	print("   3. amy4（端口/ClientKey）     4. tinyproxy（端口/认证）")
+	print("   5. 停止服务（关自启）         6. 启动服务（开自启）")
+	print("   7. 查看当前配置               0. 关闭")
 	choice = ask("   选项目（多个用空格隔开；输入 0 回车关闭）: ")
 	sel = set(choice.split())
 	if not sel or sel & {"0", "q", "quit", "exit", "关闭"}:
