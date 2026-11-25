@@ -25,19 +25,37 @@ if [ -z "$DRY" ] && [ "$(id -u)" != "0" ]; then
 	exit 1
 fi
 
-# 当前目录没有套件 → 自己把整包取回来，再交给解压出来的同名脚本
+# 当前目录没有套件 → 先试着从自己的 GitHub 克隆，失败再回退到压缩包
 if [ ! -f "$KIT/install.sh" ] || [ ! -d "$KIT/bin" ]; then
+	GH_REPO="${GH_REPO:-git@github.com:abcc123445653/1.git}"
+	GH_KEY="${GH_KEY:-$HOME/.ssh/github_1}"
+	PKG=$(mktemp -d)
+
+	if command -v git >/dev/null 2>&1 && [ -f "$GH_KEY" ]; then
+		echo "==> 从 GitHub 克隆 $GH_REPO"
+		if GIT_SSH_COMMAND="ssh -i $GH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+			git clone --depth 1 "$GH_REPO" "$PKG/repo" >/dev/null 2>&1 && \
+			[ -f "$PKG/repo/selfhost-kit/builds.sh" ]; then
+			echo "==> 使用仓库内套件（bin/ 由 MANIFEST 校验）"
+			RC=0
+			sh "$PKG/repo/selfhost-kit/builds.sh" "$@" || RC=$?
+			rm -rf "$PKG"
+			exit "$RC"
+		fi
+		echo "!! 克隆失败，回退到压缩包来源"
+	fi
+
 	KIT_URL="${KIT_URL:-$KIT_URL_DEFAULT}"
 	KIT_SHA="${KIT_SHA:-$KIT_SHA_DEFAULT}"
 	if [ -z "$KIT_URL" ] || [ -z "$KIT_SHA" ]; then
+		rm -rf "$PKG"
 		echo "错误: 当前目录缺少 install.sh 和 bin/，本文件也没有内置下载地址。" >&2
-		echo "请把整包放在同目录，或设置 KIT_URL 与 KIT_SHA 环境变量。" >&2
+		echo "请把整包放在同目录，或设置 GH_KEY / KIT_URL / KIT_SHA。" >&2
 		exit 1
 	fi
-	command -v tar >/dev/null 2>&1 || { echo "错误: 缺少 tar" >&2; exit 1; }
-	command -v sha256sum >/dev/null 2>&1 || { echo "错误: 缺少 sha256sum" >&2; exit 1; }
+	command -v tar >/dev/null 2>&1 || { rm -rf "$PKG"; echo "错误: 缺少 tar" >&2; exit 1; }
+	command -v sha256sum >/dev/null 2>&1 || { rm -rf "$PKG"; echo "错误: 缺少 sha256sum" >&2; exit 1; }
 
-	PKG=$(mktemp -d)
 	echo "==> 下载套件（约 19 MB）"
 	if command -v curl >/dev/null 2>&1; then
 		curl -fsSL --proto '=https' --tlsv1.2 "$KIT_URL" -o "$PKG/kit.tar.gz" \
