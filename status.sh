@@ -1,6 +1,8 @@
 #!/bin/sh
-# 查看本机当前运行的所有配置信息
-# 用法: sh status.sh
+# 查看 / 修改本机当前运行的所有配置信息
+# 用法:
+#   sh status.sh        只看
+#   sh status.sh edit   看完后进入修改（端口 / 密码 / UUID / ClientKey）
 
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
@@ -10,8 +12,13 @@ if ! command -v python3 >/dev/null 2>&1; then
 	exit 1
 fi
 
-python3 - <<'PY'
-import json, os, re, shutil, subprocess, datetime, socket
+PYFILE=$(mktemp /tmp/parso-status.XXXXXX.py) || {
+	echo "无法创建临时文件" >&2
+	exit 1
+}
+
+cat >"$PYFILE" <<'PY'
+import json, os, re, shutil, subprocess, datetime, socket, time, sys
 
 C0 = "\033[0m"
 CY = "\033[36m"
@@ -19,6 +26,8 @@ CB = "\033[1m"
 CG = "\033[32m"
 CR = "\033[31m"
 CYEL = "\033[33m"
+
+EDIT = os.environ.get("PARSO_EDIT") == "1"
 
 def run(cmd):
 	try:
@@ -35,6 +44,55 @@ def kv(k, v, w=12):
 
 def fail(msg):
 	print("   %s%s%s" % (CR, msg, C0))
+
+def ok(msg):
+	print("   %s%s%s" % (CG, msg, C0))
+
+def warn(msg):
+	print("   %s%s%s" % (CYEL, msg, C0))
+
+def ask(prompt):
+	try:
+		return input(prompt).strip()
+	except (EOFError, KeyboardInterrupt):
+		print("")
+		return ""
+
+def valid_port(s):
+	return s.isdigit() and 1 <= int(s) <= 65535
+
+def port_busy(p):
+	return bool(run("ss -lntp 2>/dev/null | grep -E ':%s([^0-9]|$)'" % p))
+
+def backup_file(path):
+	b = "%s.bak-%s" % (path, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+	try:
+		shutil.copy2(path, b)
+		return b
+	except Exception:
+		return ""
+
+def write_json(path, obj):
+	tmp = path + ".new"
+	with open(tmp, "w") as f:
+		json.dump(obj, f, ensure_ascii=False, indent=2)
+	os.replace(tmp, path)
+
+def restart_check(name, ports, bak=""):
+	run("systemctl restart %s 2>&1" % name)
+	time.sleep(2)
+	st = run("systemctl is-active %s" % name)
+	missing = [p for p in ports if not port_busy(p)]
+	if st != "active" or missing:
+		fail("重启后状态 %s%s" % (st, ("，端口没在监听: " + ", ".join(":" + p for p in missing)) if missing else ""))
+		log = run("journalctl -u %s -n 10 --no-pager 2>/dev/null | tail -10" % name)
+		if log:
+			print(log)
+		if bak:
+			warn("原配置备份在 %s ，要回退直接 cp 回去再 systemctl restart %s" % (bak, name))
+		return False
+	ok("%s 已重启，%s 正常监听" % (name, ", ".join(":" + p for p in ports)))
+	return True
 
 # ---------- 基础信息 ----------
 host = socket.gethostname()
@@ -185,17 +243,18 @@ def inbound_info(ib, ip):
 
 title("xray")
 xray_json = "/usr/local/xray/xray.json"
+xray_data = {}
 if not os.path.isdir("/usr/local/xray"):
 	print("   %s未安装%s" % ("\033[90m", C0))
 elif not os.path.isfile(xray_json):
 	fail("目录存在但没找到 %s" % xray_json)
 else:
 	try:
-		data = json.load(open(xray_json))
+		xray_data = json.load(open(xray_json))
 	except Exception as e:
 		fail("配置解析失败: %s" % e)
-		data = {}
-	ib_list = data.get("inbounds") or []
+		xray_data = {}
+	ib_list = xray_data.get("inbounds") or []
 	kv("安装目录", "/usr/local/xray")
 	kv("配置文件", xray_json)
 	kv("入站数量", "%d 个" % len(ib_list))
@@ -216,56 +275,58 @@ else:
 			if link:
 				kv("链接", link, 8)
 		print("")
-		outbounds = data.get("outbounds") or []
+		outbounds = xray_data.get("outbounds") or []
 		if outbounds:
 			kv("出站", ",".join(o.get("protocol", "") for o in outbounds))
 
 # ---------- cns ----------
 title("cns")
 cns_dir = "/usr/local/cns"
+cns_json = os.path.join(cns_dir, "cns.json")
+cns_data = {}
 if not os.path.isdir(cns_dir):
 	print("   %s未安装%s" % ("\033[90m", C0))
 else:
-	cns_json = os.path.join(cns_dir, "cns.json")
 	kv("安装目录", cns_dir)
 	if not os.path.isfile(cns_json):
 		fail("目录存在但没找到 %s" % cns_json)
 	else:
 		try:
-			c = json.load(open(cns_json))
+			cns_data = json.load(open(cns_json))
 		except Exception as e:
 			fail("配置解析失败: %s" % e)
-			c = {}
+			cns_data = {}
 		kv("配置文件", cns_json)
-		listen = c.get("Listen_addr") or []
+		listen = cns_data.get("Listen_addr") or []
 		kv("监听端口", ",".join(str(x) for x in listen) or "-")
-		tls = c.get("Tls") or {}
+		tls = cns_data.get("Tls") or {}
 		if tls:
 			kv("TLS 监听", ",".join(str(x) for x in (tls.get("Listen_addr") or [])) or "-")
-		pw = c.get("Encrypt_password") or ""
+		pw = cns_data.get("Encrypt_password") or ""
 		kv("加密密码", pw if pw else "（空，不加密）")
-		kv("Proxy_key", str(c.get("Proxy_key", "Meng")))
-		kv("Udp_flag", str(c.get("Udp_flag", "httpUDP")))
-		kv("UDP/TCP 超时", "%s / %s 秒" % (c.get("Udp_timeout", "-"), c.get("Tcp_timeout", "-")))
+		kv("Proxy_key", str(cns_data.get("Proxy_key", "Meng")))
+		kv("Udp_flag", str(cns_data.get("Udp_flag", "httpUDP")))
+		kv("UDP/TCP 超时", "%s / %s 秒" % (cns_data.get("Udp_timeout", "-"), cns_data.get("Tcp_timeout", "-")))
 
 # ---------- amy4 ----------
 title("amy4")
 amy_dir = "/usr/local/amy4"
+amy_json = os.path.join(amy_dir, "amy4.json")
+amy_data = {}
 if not os.path.isdir(amy_dir):
 	print("   %s未安装%s" % ("\033[90m", C0))
 else:
-	amy_json = os.path.join(amy_dir, "amy4.json")
 	kv("安装目录", amy_dir)
 	if not os.path.isfile(amy_json):
 		fail("目录存在但没找到 %s" % amy_json)
 	else:
 		try:
-			a = json.load(open(amy_json))
+			amy_data = json.load(open(amy_json))
 		except Exception as e:
 			fail("配置解析失败: %s" % e)
-			a = {}
+			amy_data = {}
 		kv("配置文件", amy_json)
-		for ins in (a.get("AmyIns") or []):
+		for ins in (amy_data.get("AmyIns") or []):
 			s = ins.get("ANetSettings") or {}
 			kv("服务端口", str(s.get("ListenAddr", "-")))
 			keys = s.get("ClientKeys") or []
@@ -299,5 +360,233 @@ for name, d in SERVICES:
 	if os.path.isdir(d):
 		sz = run("du -sh %s 2>/dev/null | awk '{print $1}'" % d)
 		kv("占用 %s" % name, sz or "-")
+
+if not EDIT:
+	print("")
+	print("   改端口 / 密码 / UUID / ClientKey：\033[36msh status.sh edit\033[0m")
+	print("")
+	sys.exit(0)
+
+# ================= 修改配置 =================
+def edit_xray():
+	path = xray_json
+	if not os.path.isfile(path):
+		warn("xray 未安装，跳过")
+		return
+	title("修改 xray（端口 / UUID）")
+	print("   当前 UUID: %s" % (inbound_info((xray_data.get("inbounds") or [{}])[0], ip)[2] or "-"))
+	ibs = xray_data.get("inbounds") or []
+	new_ports = {}
+	for i, ib in enumerate(ibs, 1):
+		label, port, uid, link = inbound_info(ib, ip)
+		while True:
+			ans = ask("   [%d] %s 当前 :%s  新端口(回车不改): " % (i, label, port))
+			if not ans:
+				break
+			if not valid_port(ans):
+				warn("端口要 1-65535 的整数")
+				continue
+			if ans == str(port):
+				break
+			if port_busy(ans):
+				warn(":%s 已经有进程在监听，换一个" % ans)
+				continue
+			new_ports[i - 1] = ans
+			break
+	new_uuid = ask("   新 UUID（回车不改，输入 - 随机生成一个）: ")
+	changed = False
+	for idx, p in new_ports.items():
+		old = ibs[idx].get("port", "")
+		ibs[idx]["port"] = int(p) if isinstance(old, int) else str(p)
+		changed = True
+	if new_uuid:
+		if new_uuid == "-":
+			import uuid as _uuid
+			new_uuid = str(_uuid.uuid4())
+		if not re.match(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", new_uuid):
+			warn("UUID 格式不对（要 8-4-4-4-12 的十六进制），本次不改 UUID")
+		else:
+			for ib in ibs:
+				for c in ((ib.get("settings") or {}).get("clients") or []):
+					if "id" in c:
+						c["id"] = new_uuid
+					elif "password" in c:
+						c["password"] = new_uuid
+			changed = True
+			print("   新 UUID: %s" % new_uuid)
+	if not changed:
+		print("   xray 没有改动")
+		return
+	bak = backup_file(path)
+	try:
+		write_json(path, xray_data)
+	except Exception as e:
+		fail("写配置失败: %s" % e)
+		return
+	ports = [str(ib.get("port")) for ib in ibs]
+	restart_check("xray", ports, bak)
+	try:
+		fresh = json.load(open(path))
+	except Exception:
+		fresh = xray_data
+	print("\n   %s新的分享链接：%s" % (CB, C0))
+	for ib in (fresh.get("inbounds") or []):
+		label, port, uid, link = inbound_info(ib, ip)
+		print("   [%s] :%s" % (label, port))
+		if link:
+			print("     %s" % link)
+
+def edit_cns():
+	if not os.path.isfile(cns_json):
+		warn("cns 未安装，跳过")
+		return
+	title("修改 cns（端口 / TLS 端口 / 加密密码 / 代理头域）")
+	listen = cns_data.get("Listen_addr") or []
+	cur_port = str(listen[0]).lstrip(":") if listen else ""
+	tls = cns_data.get("Tls") or {}
+	tls_listen = tls.get("Listen_addr") or []
+	cur_tls = str(tls_listen[0]).lstrip(":") if tls_listen else ""
+	changed = False
+	while True:
+		ans = ask("   当前 TCP 端口 :%s  新端口(回车不改): " % (cur_port or "-"))
+		if not ans:
+			break
+		if not valid_port(ans):
+			warn("端口要 1-65535 的整数")
+			continue
+		if port_busy(ans) and ans != cur_port:
+			warn(":%s 已经有进程在监听，换一个" % ans)
+			continue
+		cns_data["Listen_addr"] = [":" + ans]
+		changed = True
+		break
+	while True:
+		ans = ask("   当前 TLS 端口 :%s  新 TLS 端口(回车不改，输入 0 关闭 TLS): " % (cur_tls or "-"))
+		if not ans:
+			break
+		if ans == "0":
+			cns_data.pop("Tls", None)
+			changed = True
+			print("   已关闭 TLS 监听")
+			break
+		if not valid_port(ans):
+			warn("端口要 1-65535 的整数")
+			continue
+		if port_busy(ans) and ans != cur_tls:
+			warn(":%s 已经有进程在监听，换一个" % ans)
+			continue
+		cns_data.setdefault("Tls", {})["Listen_addr"] = [":" + ans]
+		changed = True
+		break
+	pw = cns_data.get("Encrypt_password") or ""
+	ans = ask("   当前加密密码 %s  新密码(回车不改，输入 - 清空): " % (pw if pw else "（空）"))
+	if ans:
+		cns_data["Encrypt_password"] = "" if ans == "-" else ans
+		changed = True
+	ans = ask("   当前代理头域 %s  新头域(回车不改): " % str(cns_data.get("Proxy_key", "Meng")))
+	if ans:
+		cns_data["Proxy_key"] = ans
+		changed = True
+	if not changed:
+		print("   cns 没有改动")
+		return
+	bak = backup_file(cns_json)
+	try:
+		write_json(cns_json, cns_data)
+	except Exception as e:
+		fail("写配置失败: %s" % e)
+		return
+	ports = [str(x).lstrip(":") for x in (cns_data.get("Listen_addr") or [])]
+	if cns_data.get("Tls"):
+		ports += [str(x).lstrip(":") for x in (cns_data["Tls"].get("Listen_addr") or [])]
+	restart_check("cns", ports, bak)
+	print("   现在 cns 端口 %s，加密密码 %s，Proxy_key %s" % (
+		",".join(":" + p for p in ports),
+		cns_data.get("Encrypt_password") or "（空，不加密）",
+		cns_data.get("Proxy_key", "Meng")))
+
+def edit_amy4():
+	if not os.path.isfile(amy_json):
+		warn("amy4 未安装，跳过")
+		return
+	title("修改 amy4（端口 / ClientKey / IPv6）")
+	ins = (amy_data.get("AmyIns") or [{}])[0]
+	s = ins.setdefault("ANetSettings", {})
+	cur = str(s.get("ListenAddr", "")).lstrip(":")
+	cur_key = ", ".join(k for k in (s.get("ClientKeys") or []) if k)
+	cur_v6 = s.get("IPv6Support", False)
+	changed = False
+	while True:
+		ans = ask("   当前端口 :%s  新端口(回车不改): " % (cur or "-"))
+		if not ans:
+			break
+		if not valid_port(ans):
+			warn("端口要 1-65535 的整数")
+			continue
+		if port_busy(ans) and ans != cur:
+			warn(":%s 已经有进程在监听，换一个" % ans)
+			continue
+		s["ListenAddr"] = ":" + ans
+		changed = True
+		break
+	ans = ask("   当前 ClientKey %s  新 Key(回车不改，输入 - 清空不校验): " % (cur_key or "（空）"))
+	if ans:
+		s["ClientKeys"] = [] if ans == "-" else [ans]
+		changed = True
+	ans = ask("   当前 IPv6 %s  开启 IPv6?(y/n，回车不改): " % ("true" if cur_v6 is True else "false"))
+	if ans:
+		s["IPv6Support"] = ans.lower().startswith("y")
+		changed = True
+	if not changed:
+		print("   amy4 没有改动")
+		return
+	bak = backup_file(amy_json)
+	try:
+		write_json(amy_json, amy_data)
+	except Exception as e:
+		fail("写配置失败: %s" % e)
+		return
+	restart_check("amy4", [str(s.get("ListenAddr", "")).lstrip(":")], bak)
+	print("   现在 amy4 端口 %s，ClientKey %s，IPv6 %s" % (
+		s.get("ListenAddr", "-"),
+		", ".join(k for k in (s.get("ClientKeys") or []) if k) or "（空，不校验）",
+		"true" if s.get("IPv6Support") is True else "false"))
+
+title("修改配置")
+modifiable = [n for n, p in (("xray", xray_json), ("cns", cns_json), ("amy4", amy_json)) if os.path.isfile(p)]
+if not modifiable:
+	print("   没有已安装的服务，先 sh builds.sh 装一个再来改。")
+	print("")
+	sys.exit(0)
+print("   可修改：1. xray（端口/UUID）  2. cns（端口/TLS端口/加密密码/代理头域）  3. amy4（端口/ClientKey/IPv6）")
+choice = ask("   选项目（多个用空格隔开，直接回车退出）: ")
+sel = set(choice.split())
+done = False
+if "1" in sel and os.path.isfile(xray_json):
+	edit_xray()
+	done = True
+if "2" in sel and os.path.isfile(cns_json):
+	edit_cns()
+	done = True
+if "3" in sel and os.path.isfile(amy_json):
+	edit_amy4()
+	done = True
+if not done:
+	print("   没有改动")
 print("")
 PY
+
+chmod 600 "$PYFILE" 2>/dev/null
+if [ "$1" = "edit" ] || [ "$1" = "-e" ]; then
+	PARSO_EDIT=1 python3 "$PYFILE"
+	rc=$?
+	rm -f "$PYFILE"
+	echo ""
+	echo "已执行修改，下面是刷新后的完整状态："
+	exec sh "$0"
+else
+	python3 "$PYFILE"
+	rc=$?
+	rm -f "$PYFILE"
+	exit $rc
+fi

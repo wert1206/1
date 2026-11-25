@@ -14,6 +14,14 @@ sh 1-main/status.sh
 
 会打印：各服务是否在跑 / 是否开机自启 / 监听端口 / PID；xray 每个入站的协议类型、UUID、可直接导入的 vmess/vless/trojan 分享链接；cns 的端口、TLS 端口、加密密码；amy4 的端口与 ClientKey；tinyproxy 的端口与认证。公网 IP 用外部探针取，服务器在 NAT 后面（本机只有 172.x）也能生成正确的链接。
 
+## 改端口 / 改密码（同一屏里先看后改）
+
+```bash
+sh status.sh edit
+```
+
+先打印上面那整屏配置，再进入修改：xray 可改每个入站的端口和 UUID（输入 `-` 随机生成新 UUID）；cns 可改 TCP 端口、TLS 端口（输入 `0` 关闭 TLS）、加密密码（输入 `-` 清空）、代理头域；amy4 可改端口、ClientKey（输入 `-` 清空）、IPv6 开关。改完自动带时间戳备份原配置（`/usr/local/xxx/xxx.json.bak-YYYYMMDD-HHMMSS`）、重启对应服务并确认新端口确实在监听，最后刷新整屏显示新的分享链接。端口被别的进程占用会直接拦下来不让改。
+
 ## 一键安装（与上游 parso 同款菜单，文件全部来自本仓库）
 
 ```bash
