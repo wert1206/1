@@ -12,6 +12,8 @@ sh /root/go.sh           # 新机器：拉整包 + 部署 ccc/pull.sh + 直接�
 
 三者都在仓库根目录：`ccc.sh`（面板短命令本体）、`pull.sh`（更新）、`go.sh`（一键拉取 + 安装）。
 
+token 只需配一次（见「配置 GitHub token」），之后上面这些命令**都不用带 token**。
+
 ## 首次部署（空白机器）
 
 ```bash
@@ -89,11 +91,14 @@ sh /root/pull.sh self     # 只把 pull.sh 自身更新成仓库最新版
 
 **增量**：远端 commit 没变就直接跳过整包下载（版本号记在 `/root/1-main/.kit-rev`，用 `git ls-remote` 查、不占 API 限额），重复执行约 1 秒（实测 0.93 秒）；要强制重下加 `--force`（`sh /root/go.sh --force`）或 `FORCE=1 sh /root/pull.sh kit`。
 
-**限额**：默认匿名 60 次/小时/IP。把有 `Contents: Read` 权限的 token 存进 `GH_TOKEN`，脚本里的 `api.github.com` 请求会自动带上 `Authorization`，额度变 5000 次/小时：
+**限额**：匿名 60 次/小时/IP；配只读 token 后 5000 次/小时。配置方法见下一节，**不要把 token 直接写进命令行**——会留在 shell 历史、`ps` 输出和终端记录里。脚本按 `GH_TOKEN` → `/root/.gh_token` 的顺序自动取，所以配一次之后命令保持清爽：
 
 ```bash
-echo 'export GH_TOKEN=ghp_xxx' >> /root/.bashrc && . /root/.bashrc
+sh /root/go.sh --no-menu      # 不带 token，脚本自己读 /root/.gh_token
+sh /root/pull.sh status
 ```
+
+当前额度随时可查（脱敏显示 + limit / remaining）：`sh /root/token.sh --show`。
 
 首次先把 `pull.sh` 取下来（之后一直用它，含自我更新）：
 
@@ -106,6 +111,16 @@ curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/pu
 
 脚本默认匿名跑（60 次/小时/IP），日常够用。要把额度提到 5000 次/小时，用 `token.sh` 把**只读** token 存到本机（token 本身不进仓库，仓库只放脚本）：
 
+**怎么申请**（GitHub 网页，1 分钟）：
+
+1. 打开 <https://github.com/settings/personal-access-tokens/new>（Fine-grained token）；
+2. Token name 随意（如 `server-read`），Expiration 选 90 天；
+3. Repository access → Only select repositories → 只选 `abcc123445653/1`；
+4. Permissions → Repository permissions → **Contents: Read-only**，其余全部 `No access`；
+5. Generate token，复制 `github_pat_…`，粘进下面的 `sh token.sh` 回车。
+
+只读就够：写操作（建 Release、传资产）用临时授权的 classic token，用完即撤。
+
 ```bash
 sh token.sh                 # 粘贴 token 回车（不留在 shell 历史），存到 /root/.gh_token（600）
 sh token.sh --show          # 查看是否已配置（脱敏）与当前额度
@@ -114,6 +129,15 @@ sh token.sh ghp_xxx --bashrc   # 顺便写进 /root/.bashrc 的 export GH_TOKEN
 ```
 
 `pull.sh` / `go.sh` / `parso/builds.sh` 启动时按这个顺序取 token：环境变量 `GH_TOKEN` → `/root/.gh_token`，所以配一次之后 cron、非交互 shell 都能用。token 只用 `Contents: Read` 就够；写操作（建 Release、传资产）另行临时授权。
+
+存好之后，所有命令都不需要再带 token：
+
+```bash
+sh /root/go.sh              # 直接用
+sh /root/pull.sh status
+```
+
+不要把 token 内联在命令行里（`GH_TOKEN=github_pat_… sh …`）：会留在 `~/.bash_history` 和 `ps` 输出里，换机器、截图、共享终端时容易外泄。确实要临时内联，命令前加一个空格（配合 `HISTCONTROL=ignorespace`），或跑完 `history -d` 删掉那条。
 
 ## 目录结构
 
@@ -124,7 +148,7 @@ pull.sh            拉取最新（整包 / 面板 / 自身）
 go.sh              一键拉取 + 部署 + 进安装菜单
 status.sh          查看 + 修改一体的面板脚本（v11）
 token.sh           存 / 查 / 清 GitHub token（只落本机 /root/.gh_token）
-SHA256SUMS         三个二进制 + 面板脚本的哈希清单，解压后自动校验
+SHA256SUMS         三个二进制（xray / cns / amy4）的哈希清单，解压后自动校验
 .github/workflows   CI：语法检查、哈希校验、面板冒烟
 parso/             安装器本体，与上游目录结构一致，二进制随仓库分发
   builds.sh        安装 / 卸载菜单
