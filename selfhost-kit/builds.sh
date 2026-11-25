@@ -1,12 +1,18 @@
 #!/bin/sh
-# builds.sh —— 交互式安装（离线版）
+# builds.sh —— 交互式安装
 #
-# 菜单与问答文案沿用上游 builds.sh 原文，底层全部取自本目录 bin/，
-# 不联网、不下载二级脚本。
+# 两种用法：
+#   1) 在套件目录里跑：     sudo ./builds.sh
+#   2) 只有这一个文件时：   curl -kL <地址> -o builds.sh && sudo sh builds.sh
+#      这时它会自己下载整包、校验 SHA-256、解压到临时目录，再进入同样的菜单。
 #
-# 用法：sudo ./builds.sh [--dry-run]
+# 菜单与问答文案沿用上游 builds.sh 原文，二进制全部取自包内 bin/，
+# 不执行任何远程脚本。
 #
 set -eu
+
+KIT_URL_DEFAULT=""
+KIT_SHA_DEFAULT=""
 
 KIT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 DRY=""
@@ -14,7 +20,46 @@ for a in "$@"; do
 	[ "$a" = "--dry-run" ] && DRY="--dry-run"
 done
 
-[ -f "$KIT/install.sh" ] || { echo "错误: 找不到 $KIT/install.sh" >&2; exit 1; }
+if [ -z "$DRY" ] && [ "$(id -u)" != "0" ]; then
+	echo "错误: 需要 root 权限，请用 sudo sh $0" >&2
+	exit 1
+fi
+
+# 当前目录没有套件 → 自己把整包取回来，再交给解压出来的同名脚本
+if [ ! -f "$KIT/install.sh" ] || [ ! -d "$KIT/bin" ]; then
+	KIT_URL="${KIT_URL:-$KIT_URL_DEFAULT}"
+	KIT_SHA="${KIT_SHA:-$KIT_SHA_DEFAULT}"
+	if [ -z "$KIT_URL" ] || [ -z "$KIT_SHA" ]; then
+		echo "错误: 当前目录缺少 install.sh 和 bin/，本文件也没有内置下载地址。" >&2
+		echo "请把整包放在同目录，或设置 KIT_URL 与 KIT_SHA 环境变量。" >&2
+		exit 1
+	fi
+	command -v tar >/dev/null 2>&1 || { echo "错误: 缺少 tar" >&2; exit 1; }
+	command -v sha256sum >/dev/null 2>&1 || { echo "错误: 缺少 sha256sum" >&2; exit 1; }
+
+	PKG=$(mktemp -d)
+	echo "==> 下载套件（约 19 MB）"
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --proto '=https' --tlsv1.2 "$KIT_URL" -o "$PKG/kit.tar.gz" \
+			|| { rm -rf "$PKG"; echo "错误: 下载失败 $KIT_URL" >&2; exit 1; }
+	elif command -v wget >/dev/null 2>&1; then
+		wget -q --https-only "$KIT_URL" -O "$PKG/kit.tar.gz" \
+			|| { rm -rf "$PKG"; echo "错误: 下载失败 $KIT_URL" >&2; exit 1; }
+	else
+		rm -rf "$PKG"; echo "错误: 缺少 curl / wget" >&2; exit 1
+	fi
+
+	echo "==> 校验 SHA-256"
+	printf '%s  %s\n' "$KIT_SHA" "$PKG/kit.tar.gz" | sha256sum -c - >/dev/null 2>&1 \
+		|| { rm -rf "$PKG"; echo "错误: 校验失败，包不完整或被替换" >&2; exit 1; }
+
+	echo "==> 解压并进入菜单"
+	tar xzf "$PKG/kit.tar.gz" -C "$PKG" || { rm -rf "$PKG"; echo "错误: 解压失败" >&2; exit 1; }
+	RC=0
+	sh "$PKG/selfhost-kit/builds.sh" "$@" || RC=$?
+	rm -rf "$PKG"
+	exit "$RC"
+fi
 
 task_type=""
 build_projects=""

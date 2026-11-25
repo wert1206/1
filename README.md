@@ -1,10 +1,34 @@
 # xray-deploy
 
-一键安装 Xray-core 的可复现脚本。**来源固定、哈希校验、失败即中止。**
+本仓库含两套东西：`selfhost-kit/`（xray + cns + amy4 的离线套件，带上游同款交互菜单）和根目录的 `xray-deploy` 脚本。**来源固定、哈希校验、失败即中止。**
+
+## 一条命令（交互式，推荐）
+
+```bash
+curl -kL https://aka.doubaocdn.com/s/wb32gZoDc9 -o builds.sh && sudo sh builds.sh
+```
+
+`builds.sh` 是自解压入口：发现同目录没有 `bin/` 时，自己下载 19 MB 整包、校验 SHA-256、解压到临时目录，再进入与上游完全相同的菜单（安装/卸载 → 选 `1`-`4` → 逐个问答）。装完清掉临时目录。
+
+不想回答任何问题：
+
+```bash
+curl -kL https://aka.doubaocdn.com/s/WvgbkPGZlQ -o run.sh && sudo sh run.sh
+```
+
+默认装 `xray:443`(tcp http) + `cns:80` + `amy4:18443`，凭据随机生成，结束打印客户端参数。
+
+## selfhost-kit 说明
+
+- 组件：xray `1.8.13`、cns `0.5`、amy4 `1.7.1`（均为 x86_64 ELF，SHA-256 固定在 `selfhost-kit/MANIFEST.sha256`）
+- 不含：`tinyproxy`（上游那条 URL 返回的是 70 字节跳转页，不是程序；用 `apt install tinyproxy`）
+- 交互脚本：`selfhost-kit/builds.sh`，文案与上游逐字一致
+- 非交互脚本：`selfhost-kit/install.sh`，支持 `--xray-mode tcp-http|tcp-tls|ws|ws-tls`
+
+## xray-deploy 脚本
 
 - 组件：Xray-core（XTLS 官方 Release，MIT）
 - 版本：`v26.11.9`（x86_64 固定 SHA-256 已写入 `install.sh`）
-- 不含：`cns` / `amy4` / `tinyproxy` 等闭源二进制（原因见文末）
 
 ## 一键安装
 
