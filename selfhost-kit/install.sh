@@ -114,10 +114,24 @@ place_bin() {
 	cp "$1" "$2" && chmod 755 "$2" || die "写入 $2 失败（文件被占用？先 systemctl stop ${2##*/}）"
 }
 
+# 成功块要用到的公网地址：PUBLIC_HOST 可显式指定
+pub_host() {
+	if [ -n "$PUBLIC_HOST" ]; then echo "$PUBLIC_HOST"; return 0; fi
+	_ph=$(ip route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1)
+	[ -n "$_ph" ] || _ph=$(hostname -I 2>/dev/null | awk '{print $1}')
+	[ -n "$_ph" ] || _ph="你的服务器地址"
+	echo "$_ph"
+}
+
+# vmess:// 链接：net/type/host/path/tls 与原版一致
+vmess_link() {
+	printf '{"v":"2","ps":"%s","add":"%s","port":"%s","id":"%s","aid":"0","scy":"auto","net":"%s","type":"%s","host":"%s","path":"%s","tls":"%s"}' \
+		"$1" "$(pub_host)" "$XRAY_PORT" "$UUID" "$2" "$3" "$4" "$5" "$6" | base64 2>/dev/null | tr -d '\n'
+}
+
 if [ "$DRY_RUN" = "1" ]; then
 	ROOT_DIR=$(mktemp -d)
-	echo "==> 干跑模式，写入 $ROOT_DIR"
-else
+	echo "==> 干跑模式，写入 $ROOT_DIR"else
 	ROOT_DIR=""
 fi
 
@@ -329,6 +343,40 @@ if [ "$DRY_RUN" = "0" ]; then
 		done
 	fi
 	echo
+	# ---- 与原版一致的安装成功块 ----
+	if has xray; then
+		case "$XRAY_MODE" in
+			tcp-http) _lab="vmess tcp http"; _net=tcp; _type=http; _path=""; _tls="" ;;
+			tcp-tls)  _lab="vmess tcp tls";  _net=tcp; _type=none; _path=""; _tls=tls ;;
+			ws)       _lab="vmess ws";       _net=ws;  _type=none; _path="$XRAY_WS_PATH"; _tls="" ;;
+			ws-tls)   _lab="vmess ws tls";   _net=ws;  _type=none; _path="$XRAY_WS_PATH"; _tls=tls ;;
+			*)        _lab="vmess"; _net=tcp; _type=none; _path=""; _tls="" ;;
+		esac
+		printf '\033[44;37mxray install success.\033[0m\n'
+		printf '\t%-26s %s\n' "$_lab server:" "port=$XRAY_PORT"
+		printf '\t%-26s %s\n' "uuid:" "$UUID"
+		printf '\t%-26s %s\n' "alterId:" "0"
+		printf '\t%-26s %s\n' "Usage:" "systemctl [start|stop|restart|status] xray.service"
+		printf '\t%-26s %s\n' "Config file is" "$(target_dir xray)/xray.json"
+		printf '\t%-26s %s\n' "Autostart enabled, close:" "systemctl disable xray"
+		printf '\t%s:\n\t\tvmess://%s\n\n' "$_lab" "$(vmess_link "$_lab" "$_net" "$_type" "" "$_path" "$_tls")"
+	fi
+	if has cns; then
+		printf '\033[44;37mcns install success.\033[0m\n'
+		printf '\t%-26s %s\n' "cns server port:" "$CNS_PORT"
+		printf '\t%-26s %s\n' "cns proxy key:" "$CNS_KEY"
+		printf '\t%-26s %s\n' "cns udp flag:" "httpUDP"
+		printf '\t%-26s %s\n' "cns encrypt password:" "$CNS_PW"
+		printf '\t%-26s %s\n' "Usage:" "systemctl [start|stop|restart|status] cns.service"
+		printf '\t%-26s %s\n\n' "Config file is" "$(target_dir cns)/cns.json"
+	fi
+	if has amy4; then
+		printf '\033[44;37mamy4 install success.\033[0m\n'
+		printf '\t%-26s %s\n' "amy4 server port:" "$AMY4_PORT"
+		printf '\t%-26s %s\n' "amy4 client key:" "$AMY_KEY"
+		printf '\t%-26s %s\n' "Usage:" "systemctl [start|stop|restart|status] amy4.service"
+		printf '\t%-26s %s\n\n' "Config file is" "$(target_dir amy4)/amy4.json"
+	fi
 	echo "已安装完成。端口冲突检查: ss -lntp | grep -E ':$XRAY_PORT|:$CNS_PORT|:$AMY4_PORT'"
 else
 	echo

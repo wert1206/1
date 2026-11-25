@@ -130,7 +130,8 @@ xray_set() {
 			   printf "请输入vmess websocket路径(默认: '/'): "; ask ''; [ -n "$REPLY" ] && xray_ws_path="$REPLY" ;;
 			5) printf '请输入vmess websocket tls服务端口: '; ask ''; P="$REPLY"
 			   printf "请输入vmess websocket tls路径(默认: '/'): "; ask ''; [ -n "$REPLY" ] && xray_ws_path="$REPLY" ;;
-			6) printf '请输入vless websocket tls服务端口: '; ask ''; P="$REPLY" ;;
+			6) printf '请输入vless websocket tls服务端口: '; ask ''; P="$REPLY"
+			   printf "请输入vless websocket tls路径(默认: '/'): "; ask ''; [ -n "$REPLY" ] && xray_ws_path="$REPLY" ;;
 			7) printf '请输入vmess mKCP服务端口: '; ask ''; P="$REPLY" ;;
 			8) printf '请输入vmess mKCP tls服务端口: '; ask ''; P="$REPLY" ;;
 			9) printf '请输入vless mKCP tls服务端口: '; ask ''; P="$REPLY" ;;
