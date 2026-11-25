@@ -1,5 +1,19 @@
 # xray-deploy
 
+## 上手三件套（ccc / pull.sh / go.sh）
+
+```bash
+ccc                      # 日常运维：查看 + 改配置 + 启停服务 + 安装/卸载，一个面板搞定
+sh /root/pull.sh status  # 更新到最新：拉 status.sh 并重装 ccc（1 个请求，实测 0.7 秒）
+sh /root/go.sh           # 新机器：拉整包 + 部署 ccc/pull.sh + 直接进安装菜单
+```
+
+三者都在本仓库根目录：`ccc.sh`（面板短命令本体）、`pull.sh`（更新）、`go.sh`（一键拉取+安装）。空白机器上先取 go.sh 跑一遍，它会把 `ccc.sh`、`pull.sh`、`status.sh` 一起装好：
+
+```bash
+curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go.sh 'https://api.github.com/repos/abcc123445653/1/contents/go.sh?ref=main' && sh /root/go.sh
+```
+
 ## 查看当前运行配置（不重装、不下载整包）
 
 ```bash
@@ -20,11 +34,13 @@ sh 1-main/status.sh
 sh status.sh edit
 ```
 
-嫌长可以装个短命令 `ccc`（在服务器上执行一次，之后直接输 `ccc` 回车即可）：
+嫌长可以装个短命令 `ccc`（本体是仓库根目录的 `ccc.sh`，`go.sh` / `pull.sh` 会自动装好；手动装一行命令）：
 
 ```bash
-printf '#!/bin/sh\nexec sh /root/status.sh edit "$@"\n' > /usr/local/bin/ccc && chmod +x /usr/local/bin/ccc
+curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /usr/local/bin/ccc 'https://api.github.com/repos/abcc123445653/1/contents/ccc.sh?ref=main' && chmod +x /usr/local/bin/ccc
 ```
+
+装好后直接输 `ccc` 回车，就进入上面这个“查看 + 修改”面板；`sh status.sh edit` 效果完全一样。
 
 先打印上面那整屏配置，再进入修改；菜单每一项右侧直接显示该服务的当前状态（`● 运行中 :端口` / `○ 未运行` / `— 未安装`），每次回到菜单都会重新查一遍，改完端口立刻能看到新端口在跑。再进入修改：xray 可改每个入站的端口和 UUID（输入 `-` 随机生成新 UUID）；cns 可改 TCP 端口、TLS 端口（输入 `0` 关闭 TLS）、加密密码（输入 `-` 清空）、代理头域；amy4 可改端口、ClientKey（输入 `-` 清空）、IPv6 开关。xray 还能重选协议组合：1 tcp http / 2 tcp tls / 3 tcp reality / 4 websocket / 5 websocket tls / 6 websocket tls(vless) / 7 mkcp / 8 mkcp tls / 9 mkcp tls(vless) / 10 trojan tls，可多选，回车沿用原来的端口，TLS 自签证书和 reality 密钥用 xray 二进制现场生成；tinyproxy 用第 4 项改端口和 BasicAuth 用户名密码（新版 tinyproxy 语法是 `BasicAuth user pass`）。
 

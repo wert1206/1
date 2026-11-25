@@ -20,7 +20,18 @@ die()  { echo "错误: $*" >&2; exit 1; }
 
 install_ccc() {
 	[ -d /usr/local/bin ] || return 0
-	printf '#!/bin/sh\n# ccc = 打开配置面板（查看 + 修改 + 启停）\nexec sh %s/status.sh edit "$@"\n' "$DIR" > /usr/local/bin/ccc
+	src=""
+	for c in "$DIR/1-main/ccc.sh" "$DIR/ccc.sh"; do
+		[ -f "$c" ] && src="$c" && break
+	done
+	if [ -z "$src" ]; then
+		curl -kL --no-progress-meter --max-time 30 -H 'Accept: application/vnd.github.raw' \
+			-o /usr/local/bin/ccc "$RAW/ccc.sh?ref=$BRANCH" >/dev/null 2>&1 || true
+		grep -q 'ccc' /usr/local/bin/ccc 2>/dev/null || \
+			printf '#!/bin/sh\nexec sh %s/status.sh edit "$@"\n' "$DIR" > /usr/local/bin/ccc
+	else
+		cp "$src" /usr/local/bin/ccc
+	fi
 	chmod +x /usr/local/bin/ccc
 	echo "  → /usr/local/bin/ccc   输入 ccc 回车即打开面板"
 }

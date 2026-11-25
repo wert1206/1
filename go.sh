@@ -27,7 +27,11 @@ echo "  → $DIR/1-main   $(du -sh "$DIR/1-main" 2>/dev/null | cut -f1)"
 [ -f "$DIR/1-main/pull.sh" ] && cp "$DIR/1-main/pull.sh" "$DIR/pull.sh" && chmod +x "$DIR/pull.sh" && echo "  → $DIR/pull.sh"
 [ -f "$DIR/1-main/status.sh" ] && cp "$DIR/1-main/status.sh" "$DIR/status.sh" && chmod +x "$DIR/status.sh" && echo "  → $DIR/status.sh"
 if [ -d /usr/local/bin ] && [ -f "$DIR/status.sh" ]; then
-	printf '#!/bin/sh\n# ccc = 打开配置面板（查看 + 修改 + 启停）\nexec sh %s/status.sh edit "$@"\n' "$DIR" > /usr/local/bin/ccc
+	if [ -f "$DIR/1-main/ccc.sh" ]; then
+		cp "$DIR/1-main/ccc.sh" /usr/local/bin/ccc
+	else
+		printf '#!/usr/bin/env sh\nexec sh %s/status.sh edit "$@"\n' "$DIR" > /usr/local/bin/ccc
+	fi
 	chmod +x /usr/local/bin/ccc
 	echo "  → /usr/local/bin/ccc   输入 ccc 回车即打开面板"
 fi
