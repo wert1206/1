@@ -130,3 +130,17 @@ sudo ./uninstall.sh --port 8443
 ## 许可
 
 脚本部分可自由使用。Xray-core 遵循 MIT，许可证随归档分发至 `/usr/local/xray`。
+
+## 从哪里拉取
+
+`builds.sh` 的取包顺序：
+
+1. 当前目录已有 `install.sh` + `bin/` → 直接用
+2. 有 `git` 且存在部署密钥（默认 `~/.ssh/github_1`）→ `git clone` 本仓库，用仓库内 `selfhost-kit/`（`GH_REPO`、`GH_KEY` 可覆盖）
+3. 两者都没有 → 回退内置压缩包地址（`KIT_URL` / `KIT_SHA`）
+
+私有仓库的克隆依赖部署密钥，新机器上把 `github_1` 放进 `~/.ssh/` 并 `chmod 600` 即可：
+
+    GH_KEY=/root/.ssh/github_1 sh builds.sh
+
+克隆下来的 `bin/` 会按 `selfhost-kit/MANIFEST.sha256` 逐个校验，校验不过直接中止。
