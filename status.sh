@@ -129,7 +129,7 @@ print("\033[45;37m 当前运行配置 \033[0m")
 kv("主机名", host)
 kv("公网地址", (ip or "未知") + ("" if ip_public else "（本机地址，未探测到公网 IP）"))
 kv("查看时间", now)
-kv("脚本版本", "v8 · 支持 edit（改配置/启停服务/7 查看/0 关闭）")
+kv("脚本版本", "v9 · 支持 edit（改配置/启停服务/7 查看/8 安装/9 卸载/0 关闭）")
 
 # ---------- 端口 / 进程 ----------
 ss_out = run("ss -lntp")
@@ -855,6 +855,45 @@ def do_power(action):
 				if log:
 					print(log)
 
+def kit_builds_path():
+	base = os.path.dirname(os.path.abspath(os.environ.get("PARSO_SELF", "") or "."))
+	for c in (os.path.join(base, "parso", "builds.sh"),
+	          "/root/1-main/parso/builds.sh", "/root/parso/builds.sh"):
+		if os.path.isfile(c):
+			return c
+	return ""
+
+def ensure_kit():
+	p = kit_builds_path()
+	if p:
+		return p
+	print("   本机还没有安装器 parso/builds.sh，先拉整包…")
+	rc = 1
+	if os.path.isfile("/root/pull.sh"):
+		rc = subprocess.call(["sh", "/root/pull.sh", "kit"])
+	if rc != 0:
+		rc = subprocess.call(["sh", "-c", "curl -kL --progress-bar https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main | tar xz -C /root"])
+	if rc != 0:
+		fail("整包拉取失败，检查网络后重试")
+		return ""
+	return kit_builds_path()
+
+def run_builds(mode):
+	p = ensure_kit()
+	if not p:
+		return
+	title("安装服务" if mode == "install" else "卸载服务")
+	if mode == "install":
+		print("   进入安装菜单，按提示选项目、填端口等参数；装完自动回到这里")
+	else:
+		print("   进入卸载菜单，按提示选要卸的项目；卸完自动回到这里")
+	print("")
+	env = dict(os.environ)
+	env["PARSO_TASK"] = "1" if mode == "install" else "2"
+	subprocess.call(["sh", p], stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, env=env)
+	print("")
+	view_config()
+
 def view_config():
 	p = os.environ.get("PARSO_SELF", "")
 	if p and os.path.isfile(p):
@@ -869,9 +908,7 @@ def view_config():
 title("修改配置")
 modifiable = [n for n, p in (("xray", xray_json), ("cns", cns_json), ("amy4", amy_json), ("tinyproxy", tinyproxy_conf_path())) if os.path.isfile(p)]
 if not modifiable:
-	print("   没有已安装的服务，先 sh builds.sh 装一个再来改。")
-	print("")
-	sys.exit(0)
+	warn("没有检测到已安装的服务，输入 8 可以现在装")
 
 while True:
 	print("")
@@ -879,7 +916,8 @@ while True:
 	print("   1. xray（协议/端口/UUID）     2. cns（端口/密码/TLS）")
 	print("   3. amy4（端口/ClientKey）     4. tinyproxy（端口/认证）")
 	print("   5. 停止服务（关自启）         6. 启动服务（开自启）")
-	print("   7. 查看当前配置               0. 关闭")
+	print("   7. 查看当前配置               8. 安装服务")
+	print("   9. 卸载服务                   0. 关闭")
 	choice = ask("   选项目（多个用空格隔开；输入 0 回车关闭）: ")
 	sel = set(choice.split())
 	if not sel or sel & {"0", "q", "quit", "exit", "关闭"}:
@@ -889,6 +927,12 @@ while True:
 	if "7" in sel:
 		view_config()
 		continue
+	if "8" in sel:
+		run_builds("install")
+		done = True
+	if "9" in sel:
+		run_builds("uninstall")
+		done = True
 	done = False
 	if "1" in sel and os.path.isfile(xray_json):
 		edit_xray()

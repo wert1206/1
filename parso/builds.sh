@@ -7,8 +7,12 @@ fi
 export BASE
 
 option() {
-	echo -n $echo_opt_e "1. 安装项目\n2. 卸载项目\n请输入选项(默认为1): "
-	read install_opt
+	if [ -z "${PARSO_TASK:-}" ]; then
+		echo -n $echo_opt_e "1. 安装项目\n2. 卸载项目\n请输入选项(默认为1): "
+		read install_opt
+	else
+		install_opt="$PARSO_TASK"
+	fi
 	echo "$install_opt"|grep -q '2' && task_type='uninstall' || task_type='install'
 	echo -n $echo_opt_e "可选项目:
 	\r1. tinyproxy

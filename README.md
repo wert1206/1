@@ -28,7 +28,9 @@ printf '#!/bin/sh\nexec sh /root/status.sh edit "$@"\n' > /usr/local/bin/ccc && 
 
 先打印上面那整屏配置，再进入修改：xray 可改每个入站的端口和 UUID（输入 `-` 随机生成新 UUID）；cns 可改 TCP 端口、TLS 端口（输入 `0` 关闭 TLS）、加密密码（输入 `-` 清空）、代理头域；amy4 可改端口、ClientKey（输入 `-` 清空）、IPv6 开关。xray 还能重选协议组合：1 tcp http / 2 tcp tls / 3 tcp reality / 4 websocket / 5 websocket tls / 6 websocket tls(vless) / 7 mkcp / 8 mkcp tls / 9 mkcp tls(vless) / 10 trojan tls，可多选，回车沿用原来的端口，TLS 自签证书和 reality 密钥用 xray 二进制现场生成；tinyproxy 用第 4 项改端口和 BasicAuth 用户名密码（新版 tinyproxy 语法是 `BasicAuth user pass`）。
 
-菜单里还有：`5` 停止服务（同时 `systemctl disable` 关掉开机自启）、`6` 启动服务（同时 `systemctl enable` 打开开机自启）、`0` 关闭退出（什么都不改）；都是先输入编号再回车，可一次输入多个服务编号，回车取消。停止只是停进程，配置和文件都保留，`6` 随时能拉起来。
+菜单里还有：`5` 停止服务（同时 `systemctl disable` 关掉开机自启）、`6` 启动服务（同时 `systemctl enable` 打开开机自启）、`7` 查看当前配置（原地重打印整屏）、`8` 安装服务、`9` 卸载服务、`0` 关闭退出（什么都不改）；都是先输入编号再回车，可一次输入多个服务编号，回车取消。停止只是停进程，配置和文件都保留，`6` 随时能拉起来。
+
+`8`/`9` 会直接进入安装器的项目菜单（1 tinyproxy / 2 cns / 3 xray / 4 amy4），选项目回车就装/卸，不用再回答“安装还是卸载”；本机若还没有 `parso/builds.sh`，会先自动拉整包再进菜单。
 
 改完自动带时间戳备份原配置（`/usr/local/xxx/xxx.json.bak-YYYYMMDD-HHMMSS`）、重启对应服务并确认新端口确实在监听，最后刷新整屏显示新的分享链接。端口被别的进程占用会直接拦下来不让改。
 
