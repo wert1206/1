@@ -22,43 +22,21 @@ sh status.sh edit
 
 先打印上面那整屏配置，再进入修改：xray 可改每个入站的端口和 UUID（输入 `-` 随机生成新 UUID）；cns 可改 TCP 端口、TLS 端口（输入 `0` 关闭 TLS）、加密密码（输入 `-` 清空）、代理头域；amy4 可改端口、ClientKey（输入 `-` 清空）、IPv6 开关。xray 还能重选协议组合：1 tcp http / 2 tcp tls / 3 tcp reality / 4 websocket / 5 websocket tls / 6 websocket tls(vless) / 7 mkcp / 8 mkcp tls / 9 mkcp tls(vless) / 10 trojan tls，可多选，回车沿用原来的端口，TLS 自签证书和 reality 密钥用 xray 二进制现场生成；tinyproxy 用第 4 项改端口和 BasicAuth 用户名密码（新版 tinyproxy 语法是 `BasicAuth user pass`）。
 
+菜单里还有：`5` 停止服务（同时 `systemctl disable` 关掉开机自启）、`6` 启动服务（同时 `systemctl enable` 打开开机自启）、`0` 关闭退出（什么都不改）；都是先输入编号再回车，可一次输入多个服务编号，回车取消。停止只是停进程，配置和文件都保留，`6` 随时能拉起来。
+
 改完自动带时间戳备份原配置（`/usr/local/xxx/xxx.json.bak-YYYYMMDD-HHMMSS`）、重启对应服务并确认新端口确实在监听，最后刷新整屏显示新的分享链接。端口被别的进程占用会直接拦下来不让改。
 
-## 一键安装（与上游 parso 同款菜单，文件全部来自本仓库）
+## 一键安装 / 卸载（与上游 parso 同款菜单，文件全部来自本仓库）
+
+本仓库含两套东西：`parso/`（照上游目录结构的同款菜单安装器）和 `selfhost-kit/`（离线套件）。**来源固定、哈希校验、失败即中止。**
 
 ```bash
 curl -kL https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main | tar xz && cd 1-main/parso && sh builds.sh
 ```
 
-本仓库含两套东西：`selfhost-kit/`（xray + cns + amy4 的离线套件，带上游同款交互菜单）和根目录的 `xray-deploy` 脚本。**来源固定、哈希校验、失败即中止。**
+菜单与上游 parso 一致：安装还是卸载 → 选项目（1 tinyproxy / 2 cns / 3 xray / 4 amy4）→ 逐项参数。整包约 38 MB 一次拉完（实测 5-6 秒），之后脚本、init、service、二进制全部从本地 `file://` 读取，不再请求 `api.github.com`，不会被 60 次/小时限额卡住，也不经过任何第三方中转。卸载不问“后台运行吗”、不问安装目录，选完直接卸。
 
-## 一条命令（交互式，推荐）
-
-```bash
-curl -kL https://aka.doubaocdn.com/s/bRKMFv5It6 -o builds.sh && sudo sh builds.sh
-```
-
-`builds.sh` 是自解压入口：发现同目录没有 `bin/` 时，自己下载 19 MB 整包、校验 SHA-256、解压到临时目录，再进入与上游完全相同的菜单（安装/卸载 → 选 `1`-`4` → 逐个问答）。装完清掉临时目录。
-
-不想回答任何问题：
-
-```bash
-curl -kL https://aka.doubaocdn.com/s/Gev4sv5UuG -o run.sh && sudo sh run.sh
-```
-
-默认装 `xray:443`(tcp http) + `cns:80` + `amy4:18443`，凭据随机生成，结束打印服务状态表与客户端参数。
-
-看状态、端口、当前凭据（不重装）：
-
-```bash
-sh run.sh status
-```
-
-改端口、密码而保留其他凭据：
-
-```bash
-sh run.sh --xray-port 8443 --cns-password 新密码 --keep
-```
+非交互装机可用同仓库的离线套件脚本：`sh selfhost-kit/install.sh --xray-port 8443 --cns-password 新密码`。
 
 ## selfhost-kit 说明
 
