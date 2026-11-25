@@ -13,6 +13,15 @@ BRANCH="${BRANCH:-main}"
 DIR="${DIR:-/root}"
 TAR="https://codeload.github.com/$REPO/tar.gz/refs/heads/$BRANCH"
 
+# 脚本自己就在整包目录里（codeload 引导解压后直接跑）时，不再联网下载
+SELF_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd || echo "")
+KIT="$DIR/1-main"
+LOCAL_KIT=0
+if [ -n "$SELF_DIR" ] && [ -f "$SELF_DIR/parso/builds.sh" ] && [ -f "$SELF_DIR/status.sh" ]; then
+	KIT="$SELF_DIR"
+	LOCAL_KIT=1
+fi
+
 # 没设 GH_TOKEN 时，尝试从 /root/.gh_token 读（cron / 非交互 shell 也能用）
 if [ -z "${GH_TOKEN:-}" ] && [ -f /root/.gh_token ]; then
 	GH_TOKEN=$(cat /root/.gh_token 2>/dev/null || true)
@@ -40,18 +49,23 @@ remote_rev() {
 }
 
 verify_kit() {
-	[ -f "$DIR/1-main/SHA256SUMS" ] || return 0
-	if (cd "$DIR/1-main" && sha256sum -c SHA256SUMS >/dev/null 2>&1); then
+	[ -f "$KIT/SHA256SUMS" ] || return 0
+	if (cd "$KIT" && sha256sum -c SHA256SUMS >/dev/null 2>&1); then
 		echo "  → 二进制校验通过（SHA256SUMS）"
 	else
-		die "整包校验失败：$DIR/1-main 与 SHA256SUMS 不符"
+		die "整包校验失败：$KIT 与 SHA256SUMS 不符"
 	fi
 }
 
 
 mkdir -p "$DIR"
 rev=$(remote_rev || true)
-if [ "${FORCE:-0}" != "1" ] && [ -n "$rev" ] && [ -f "$DIR/1-main/.kit-rev" ] \
+if [ "$LOCAL_KIT" = "1" ]; then
+	echo "  → 已在整包里（$KIT），跳过下载"
+	if [ -n "$rev" ] && [ ! -f "$KIT/.kit-rev" ]; then
+		printf '%s\n' "$rev" > "$KIT/.kit-rev" 2>/dev/null || true
+	fi
+elif [ "${FORCE:-0}" != "1" ] && [ -n "$rev" ] && [ -f "$DIR/1-main/.kit-rev" ] \
 	&& [ "$(cat "$DIR/1-main/.kit-rev" 2>/dev/null)" = "$rev" ]; then
 	echo "  → 已是最新（$(echo "$rev" | cut -c1-8)），跳过整包下载"
 else
@@ -66,11 +80,11 @@ else
 fi
 
 # 部署常用入口，之后直接 ccc / sh pull.sh 就能用
-[ -f "$DIR/1-main/pull.sh" ] && cp "$DIR/1-main/pull.sh" "$DIR/pull.sh" && chmod +x "$DIR/pull.sh" && echo "  → $DIR/pull.sh"
-[ -f "$DIR/1-main/status.sh" ] && cp "$DIR/1-main/status.sh" "$DIR/status.sh" && chmod +x "$DIR/status.sh" && echo "  → $DIR/status.sh"
+[ -f "$KIT/pull.sh" ] && cp "$KIT/pull.sh" "$DIR/pull.sh" && chmod +x "$DIR/pull.sh" && echo "  → $DIR/pull.sh"
+[ -f "$KIT/status.sh" ] && cp "$KIT/status.sh" "$DIR/status.sh" && chmod +x "$DIR/status.sh" && echo "  → $DIR/status.sh"
 if [ -d /usr/local/bin ] && [ -f "$DIR/status.sh" ]; then
-	if [ -f "$DIR/1-main/ccc.sh" ]; then
-		cp "$DIR/1-main/ccc.sh" /usr/local/bin/ccc
+	if [ -f "$KIT/ccc.sh" ]; then
+		cp "$KIT/ccc.sh" /usr/local/bin/ccc
 	else
 		printf '#!/usr/bin/env sh\nexec sh %s/status.sh edit "$@"\n' "$DIR" > /usr/local/bin/ccc
 	fi
@@ -88,5 +102,5 @@ done
 [ "$menu" = "1" ] || exit 0
 
 info "进入安装菜单"
-cd "$DIR/1-main/parso" || die "整包里没有 parso/"
+cd "$KIT/parso" || die "整包里没有 parso/"
 exec sh builds.sh

@@ -27,6 +27,15 @@ curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go
 
 只想拉取部署、不进菜单：`sh /root/go.sh --no-menu`。
 
+### 不占 API 额度的引导（额度用完 / 不想用 api.github.com）
+
+```bash
+rm -rf /root/1-main && curl -kL https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main \
+  | tar xz -C /root && sh /root/1-main/go.sh --no-menu
+```
+
+整包直接从 `codeload.github.com` 解到 `/root/1-main`，`go.sh` 发现自己就在整包里，跳过联网下载，**全程 0 次 `api.github.com` 请求**；之后 `ccc`、`sh /root/pull.sh status` 照常用。想直接进安装菜单就去掉 `--no-menu`。
+
 ## 查看当前运行配置
 
 ```bash
