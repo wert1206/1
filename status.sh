@@ -129,7 +129,7 @@ print("\033[45;37m 当前运行配置 \033[0m")
 kv("主机名", host)
 kv("公网地址", (ip or "未知") + ("" if ip_public else "（本机地址，未探测到公网 IP）"))
 kv("查看时间", now)
-kv("脚本版本", "v6 · 支持 edit（改配置/启停服务/0 关闭）")
+kv("脚本版本", "v7 · 支持 edit（改配置/启停服务/7 查看/0 关闭）")
 
 # ---------- 端口 / 进程 ----------
 ss_out = run("ss -lntp")
@@ -855,51 +855,73 @@ def do_power(action):
 				if log:
 					print(log)
 
+def view_config():
+	p = os.environ.get("PARSO_SELF", "")
+	if p and os.path.isfile(p):
+		print("")
+		env = dict(os.environ)
+		env.pop("PARSO_EDIT", None)
+		subprocess.call(["sh", os.path.abspath(p)], env=env)
+		print("")
+	else:
+		warn("找不到脚本自身路径，刷新不了显示，请重新运行 sh status.sh")
+
 title("修改配置")
 modifiable = [n for n, p in (("xray", xray_json), ("cns", cns_json), ("amy4", amy_json), ("tinyproxy", tinyproxy_conf_path())) if os.path.isfile(p)]
 if not modifiable:
 	print("   没有已安装的服务，先 sh builds.sh 装一个再来改。")
 	print("")
 	sys.exit(0)
-print("   可修改：1. xray（协议/端口/UUID）  2. cns（端口/TLS端口/加密密码/代理头域）  3. amy4（端口/ClientKey/IPv6）  4. tinyproxy（端口/认证）")
-print("           5. 停止服务（同时关闭开机自启）")
-print("           6. 启动服务（同时打开开机自启）")
-print("           0. 关闭（退出，什么都不改）")
-choice = ask("   选项目（多个用空格隔开；输入 0 回车关闭）: ")
-sel = set(choice.split())
-if not sel or sel & {"0", "q", "quit", "exit", "关闭"}:
-	print("   已关闭，什么都没改。")
+
+while True:
 	print("")
-	sys.exit(0)
-done = False
-if "1" in sel and os.path.isfile(xray_json):
-	edit_xray()
-	done = True
-if "2" in sel and os.path.isfile(cns_json):
-	edit_cns()
-	done = True
-if "3" in sel and os.path.isfile(amy_json):
-	edit_amy4()
-	done = True
-if "4" in sel and tinyproxy_conf_path():
-	edit_tinyproxy()
-	done = True
-if "5" in sel:
-	do_power("stop")
-	done = True
-if "6" in sel:
-	do_power("start")
-	done = True
-if not done:
-	print("   没有改动")
-print("")
+	print("   可修改：1. xray（协议/端口/UUID）  2. cns（端口/TLS端口/加密密码/代理头域）  3. amy4（端口/ClientKey/IPv6）  4. tinyproxy（端口/认证）")
+	print("           5. 停止服务（同时关闭开机自启）")
+	print("           6. 启动服务（同时打开开机自启）")
+	print("           7. 查看当前配置（重新打印整屏）")
+	print("           0. 关闭（退出，什么都不改）")
+	choice = ask("   选项目（多个用空格隔开；输入 0 回车关闭）: ")
+	sel = set(choice.split())
+	if not sel or sel & {"0", "q", "quit", "exit", "关闭"}:
+		print("   已关闭。")
+		print("")
+		sys.exit(2)
+	if "7" in sel:
+		view_config()
+		continue
+	done = False
+	if "1" in sel and os.path.isfile(xray_json):
+		edit_xray()
+		done = True
+	if "2" in sel and os.path.isfile(cns_json):
+		edit_cns()
+		done = True
+	if "3" in sel and os.path.isfile(amy_json):
+		edit_amy4()
+		done = True
+	if "4" in sel and tinyproxy_conf_path():
+		edit_tinyproxy()
+		done = True
+	if "5" in sel:
+		do_power("stop")
+		done = True
+	if "6" in sel:
+		do_power("start")
+		done = True
+	if not done:
+		print("   没有改动")
+	print("")
+
 PY
 
 chmod 600 "$PYFILE" 2>/dev/null
 if [ "$1" = "edit" ] || [ "$1" = "-e" ]; then
-	PARSO_EDIT=1 python3 "$PYFILE"
+	PARSO_SELF="$0" PARSO_EDIT=1 python3 "$PYFILE"
 	rc=$?
 	rm -f "$PYFILE"
+	if [ "$rc" -eq 2 ]; then
+		exit 0
+	fi
 	echo ""
 	echo "已执行修改，下面是刷新后的完整状态："
 	exec sh "$0"
