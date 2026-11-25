@@ -1,0 +1,17 @@
+# 本地/运行产物
+*.log
+*.pid
+*.out
+
+# 密钥与证书，绝不入库
+*.pem
+*.key
+*.crt
+id_rsa*
+id_ed25519*
+*_deploy
+ssh-key/
+
+# 下载缓存
+Xray-linux-*.zip
+*.dgst
