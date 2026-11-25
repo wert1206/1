@@ -16,6 +16,8 @@
 
 ## 安装
 
+二进制不在 git 里（第三方闭源产物，不入公开仓库），从 `selfhost-kit.tar.gz` 解出 `bin/` 放到本目录，再执行：
+
 ```bash
 sha256sum -c MANIFEST.sha256     # 先自己验一遍
 sudo ./install.sh                # 默认 xray:443, cns:80, amy4:18443
