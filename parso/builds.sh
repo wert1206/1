@@ -12,8 +12,12 @@ option() {
 	\r4. amy4(服务端)
 	\r请选择项目(多个用空格隔开): "
 	read build_projects
-	echo -n '后台运行吗?(输出保存在builds.out文件)[n]: '
-	read daemon_run
+	if [ "$task_type" = 'uninstall' ]; then
+		daemon_run="n"
+	else
+		echo -n '后台运行吗?(输出保存在builds.out文件)[n]: '
+		read daemon_run
+	fi
 }
 
 tinyproxy_set() {
@@ -236,12 +240,13 @@ server_install_set() {
 }
 
 server_uninstall_set() {
+	# 卸载不问目录，直接用默认安装位置
 	for opt in $*; do
 		case $opt in
-			1) tinyproxy_uninstall_set;;
-			2) cns_uninstall_set;;
-			3) xray_uninstall_set;;
-			4) amy4_uninstall_set;;
+			1) tinyproxy_install_dir=/usr/local/tinyproxy; export tinyproxy_install_dir;;
+			2) cns_install_dir=/usr/local/cns; export cns_install_dir;;
+			3) xray_install_directory=/usr/local/xray; export xray_install_directory;;
+			4) amy4_install_dir=/usr/local/amy4; export amy4_install_dir;;
 			*) exec echo "选项($opt)不正确，请输入正确的选项！";;
 		esac
 	done
