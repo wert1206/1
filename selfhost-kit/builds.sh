@@ -203,7 +203,7 @@ run_tasks() {
 			;;
 	esac
 
-	[ -n "$COMPS" ] || { echo "没有选中任何可安装的组件"; return 0; }
+	[ -n "$COMPS" ] || { echo "没有选中任何可安装的组件"; return 1; }
 
 	echo
 	echo "==> 组件: $COMPS   任务: $task_type"
@@ -218,5 +218,24 @@ run_tasks() {
 }
 
 option
-[ "$task_type" = "install" ] && server_install_set || server_uninstall_set
-run_tasks
+if [ "$task_type" = "install" ]; then
+	try=0
+	while :; do
+		try=$((try + 1))
+		server_install_set
+		if run_tasks; then
+			break
+		fi
+		if [ "$try" -ge 3 ]; then
+			echo "已连续 $try 次没有选中可安装的组件，退出"
+			exit 1
+		fi
+		printf '\n请重新选择项目(多个用空格隔开，默认 2 3 4): '
+		ask ''
+		[ -n "$REPLY" ] || REPLY="2 3 4"
+		build_projects="$REPLY"
+	done
+else
+	server_uninstall_set
+	run_tasks
+fi

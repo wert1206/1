@@ -10,8 +10,8 @@
 #
 set -eu
 
-KIT_URL="${KIT_URL:-https://aka.doubaocdn.com/s/9BBCIKJgz2}"
-KIT_SHA="${KIT_SHA:-30dec29d6b076a36c04089556c75fedb191c89c412d6525e04340f242ef218d9}"
+KIT_URL="${KIT_URL:-https://aka.doubaocdn.com/s/hoQcKwnetc}"
+KIT_SHA="${KIT_SHA:-e86b3a4f107ac06cfcc930dcaae93d41d09d83db95e1f84bf20ddd408b63bf73}"
 
 die() { echo "错误: $*" >&2; exit 1; }
 

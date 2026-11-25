@@ -43,6 +43,7 @@ sudo ./builds.sh --dry-run    # 只生成配置并自检，不动系统
 |---|---|---|
 | 文件来源 | 运行时从 binary.parso.org 下载 | 本目录 `bin/`，不联网 |
 | tinyproxy | 可装 | **不可用**，上游源返回 70 字节跳转页，引导用 `apt install tinyproxy` |
+| 只选了不可用组件 | 直接退出 | 提示后回到项目选择，回车默认 `2 3 4`；连续 3 次空选才退出 |
 | xray 入站 | 10 种 | 支持 `1` tcp http、`2` tcp tls、`4` ws、`5` ws tls；reality / vless ws / mkcp / trojan 暂不支持 |
 | UPX | 可选 | 无（本地已是最终二进制） |
 | 安装目录 | 可自定义 | 固定 `/usr/local/<组件>` |
