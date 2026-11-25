@@ -56,7 +56,10 @@ if [ -z "${GH_TOKEN:-}" ] && [ -f /root/.gh_token ]; then
 	export GH_TOKEN
 fi
 
-cleanup() { [ "${TAR_DOWNLOADED:-0}" = "1" ] && rm -f "$TARBALL"; }
+cleanup() {
+	if [ "${TAR_DOWNLOADED:-0}" = "1" ]; then rm -f "$TARBALL"; fi
+	return 0
+}
 trap cleanup 0 1 2 15
 
 # 脚本自己就在整包目录里（codeload 引导解压后直接跑）时，不再联网下载
@@ -69,7 +72,7 @@ if [ -n "$SELF_DIR" ] && [ -f "$SELF_DIR/parso/builds.sh" ] && [ -f "$SELF_DIR/s
 fi
 
 remote_rev() {
-	r=$(timeout 15 git ls-remote "https://github.com/$REPO.git" "refs/heads/$BRANCH" 2>/dev/null \
+	r=$(timeout 5 git ls-remote "https://github.com/$REPO.git" "refs/heads/$BRANCH" 2>/dev/null \
 		| sed -n 's/^\([0-9a-f][0-9a-f]*\)[[:space:]].*/\1/p' | head -1)
 	if [ -n "$r" ]; then
 		printf '%s\n' "$r"

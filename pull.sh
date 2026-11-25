@@ -47,7 +47,7 @@ EOF
 }
 
 remote_rev() {
-	r=$(timeout 15 git ls-remote "https://github.com/$REPO.git" "refs/heads/$BRANCH" 2>/dev/null \
+	r=$(timeout 5 git ls-remote "https://github.com/$REPO.git" "refs/heads/$BRANCH" 2>/dev/null \
 		| sed -n 's/^\([0-9a-f][0-9a-f]*\)[[:space:]].*/\1/p' | head -1)
 	if [ -n "$r" ]; then
 		printf '%s\n' "$r"
@@ -72,7 +72,10 @@ verify_kit() {
 	fi
 }
 
-cleanup() { [ "${TAR_DOWNLOADED:-0}" = "1" ] && rm -f "$TARBALL"; }
+cleanup() {
+	if [ "${TAR_DOWNLOADED:-0}" = "1" ]; then rm -f "$TARBALL"; fi
+	return 0
+}
 trap cleanup 0 1 2 15
 
 
