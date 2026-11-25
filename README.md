@@ -65,7 +65,7 @@ ccc            # 等价于 sh /root/status.sh edit
 
 改前自动备份（`/usr/local/xxx/xxx.json.bak-YYYYMMDD-HHMMSS`，每个配置文件只留最近 5 份），改完重启并确认新端口在监听，失败自动回滚；端口被别的进程占用会直接拦下。
 
-每次打开面板、改配置、启停服务、进安装/卸载菜单，都会追加一行到 `/var/log/xray-panel.log`（时间、用户、改了什么，形如 `2026-11-25 23:33:03 [root] xray: vmess:80 / UUID 552e6fa0 → vmess:8443 / UUID 552e6fa0`），事后能查“谁在什么时候把端口改成多少”。
+每次打开面板、改配置、启停服务、进安装/卸载菜单，都会追加一行到 `/var/log/xray-panel.log`（超过 1 MB 自动改名为 `.log.1`）（时间、用户、改了什么，形如 `2026-11-25 23:33:03 [root] xray: vmess:80 / UUID 552e6fa0 → vmess:8443 / UUID 552e6fa0`），事后能查“谁在什么时候把端口改成多少”。
 
 ## 拉取最新（pull.sh）
 
@@ -78,7 +78,7 @@ sh /root/pull.sh self     # 只把 pull.sh 自身更新成仓库最新版
 
 整包走 `codeload.github.com`，不经过 `api.github.com`，不会被 60 次/小时限额卡住；`status` 只取一个文件，限额基本碰不到。接口取不到时 `status` 会自动改从整包里取，不会中断。
 
-**增量**：远端 commit 没变就直接跳过整包下载（版本号记在 `/root/1-main/.kit-rev`，用 `git ls-remote` 查、不占 API 限额），重复执行约 0.2 秒；要强制重下加 `--force`（`sh /root/go.sh --force`）或 `FORCE=1 sh /root/pull.sh kit`。
+**增量**：远端 commit 没变就直接跳过整包下载（版本号记在 `/root/1-main/.kit-rev`，用 `git ls-remote` 查、不占 API 限额），重复执行约 1 秒（实测 0.93 秒）；要强制重下加 `--force`（`sh /root/go.sh --force`）或 `FORCE=1 sh /root/pull.sh kit`。
 
 首次先把 `pull.sh` 取下来（之后一直用它，含自我更新）：
 

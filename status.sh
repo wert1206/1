@@ -90,6 +90,8 @@ def log_action(item, detail):
 		d = os.path.dirname(LOG_PATH)
 		if d and not os.path.isdir(d):
 			os.makedirs(d, exist_ok=True)
+		if os.path.isfile(LOG_PATH) and os.path.getsize(LOG_PATH) > 1024 * 1024:
+			os.replace(LOG_PATH, LOG_PATH + ".1")
 		with open(LOG_PATH, "a") as f:
 			f.write(line)
 	except Exception:
