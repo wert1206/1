@@ -5,6 +5,7 @@
 #   sh pull.sh status     只更新 status.sh（1 个请求，最快）
 #   sh pull.sh kit        只拉整包（装/升级 parso 用）
 #   sh pull.sh self       只把 pull.sh 自身更新成仓库最新版
+#   FORCE=1 sh pull.sh    远端没变也强制重新下载
 #
 # 可用环境变量覆盖：REPO=abcc123445653/1  BRANCH=main  DIR=/root
 set -eu
@@ -17,6 +18,17 @@ TAR="https://codeload.github.com/$REPO/tar.gz/refs/heads/$BRANCH"
 
 info() { printf '\033[44;37m %s \033[0m\n' "$*"; }
 die()  { echo "错误: $*" >&2; exit 1; }
+
+remote_rev() {
+	r=$(git ls-remote "https://github.com/$REPO.git" "refs/heads/$BRANCH" 2>/dev/null \
+		| sed -n 's/^\([0-9a-f][0-9a-f]*\)[[:space:]].*/\1/p' | head -1)
+	if [ -n "$r" ]; then
+		printf '%s\n' "$r"
+		return 0
+	fi
+	curl -kL --no-progress-meter --max-time 20 "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
+		| sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -1
+}
 
 verify_kit() {
 	[ -f "$DIR/1-main/SHA256SUMS" ] || return 0
@@ -47,14 +59,21 @@ install_ccc() {
 }
 
 get_kit() {
-	info "拉整包 $REPO@$BRANCH → $DIR/1-main"
 	mkdir -p "$DIR"
+	rev=$(remote_rev || true)
+	if [ "${FORCE:-0}" != "1" ] && [ -n "$rev" ] && [ -f "$DIR/1-main/.kit-rev" ] \
+		&& [ "$(cat "$DIR/1-main/.kit-rev" 2>/dev/null)" = "$rev" ]; then
+		echo "  → 已是最新（$(echo "$rev" | cut -c1-8)），跳过整包下载"
+		return 0
+	fi
+	info "拉整包 $REPO@$BRANCH → $DIR/1-main"
 	curl -kL --progress-bar --max-time 600 "$TAR" -o "$DIR/repo.tar.gz" || die "整包下载失败"
 	rm -rf "$DIR/1-main"
 	tar xzf "$DIR/repo.tar.gz" -C "$DIR" || die "解压失败"
 	rm -f "$DIR/repo.tar.gz"
 	echo "  → $DIR/1-main   $(du -sh "$DIR/1-main" 2>/dev/null | cut -f1)"
 	verify_kit
+	if [ -n "$rev" ]; then printf '%s\n' "$rev" > "$DIR/1-main/.kit-rev"; fi
 }
 
 get_self() {

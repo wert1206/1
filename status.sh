@@ -28,7 +28,7 @@ CR = "\033[31m"
 CYEL = "\033[33m"
 
 EDIT = os.environ.get("PARSO_EDIT") == "1"
-VERSION = "v10 · 支持 edit（菜单项带运行状态）"
+VERSION = "v11 · 支持 edit（运行状态 / 操作日志 / 备份留 5 份）"
 
 def run(cmd):
 	try:
@@ -69,9 +69,68 @@ def backup_file(path):
 	b = "%s.bak-%s" % (path, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
 	try:
 		shutil.copy2(path, b)
-		return b
 	except Exception:
 		return ""
+	try:
+		d = os.path.dirname(path) or "."
+		prefix = os.path.basename(path) + ".bak-"
+		olds = sorted(n for n in os.listdir(d) if n.startswith(prefix))
+		for n in olds[:-5]:
+			os.remove(os.path.join(d, n))
+	except Exception:
+		pass
+	return b
+
+LOG_PATH = os.environ.get("PARSO_LOG") or "/var/log/xray-panel.log"
+
+def log_action(item, detail):
+	try:
+		user = os.environ.get("SUDO_USER") or os.environ.get("USER") or "root"
+		line = "%s [%s] %s: %s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), user, item, detail)
+		d = os.path.dirname(LOG_PATH)
+		if d and not os.path.isdir(d):
+			os.makedirs(d, exist_ok=True)
+		with open(LOG_PATH, "a") as f:
+			f.write(line)
+	except Exception:
+		pass
+
+def snap(kind):
+	try:
+		if kind == "xray":
+			d = json.load(open(xray_json))
+			ibs = d.get("inbounds") or []
+			ports = ",".join("%s:%s" % (ib.get("protocol", "?"), ib.get("port", "?")) for ib in ibs) or "-"
+			uid = "-"
+			for ib in ibs:
+				cl = ((ib.get("settings") or {}).get("clients") or [])
+				if cl and cl[0].get("id"):
+					uid = cl[0]["id"][:8]
+					break
+			return "%s / UUID %s" % (ports, uid)
+		if kind == "cns":
+			d = json.load(open(cns_json))
+			return "%s / TLS %s / 密码%s / key %s" % (
+				d.get("Listen_addr"), (d.get("Tls") or {}).get("Listen_addr") or "关",
+				"有" if d.get("Encrypt_password") else "空", d.get("Proxy_key") or "-")
+		if kind == "amy4":
+			d = json.load(open(amy_json))
+			a = d["AmyIns"][0]["ANetSettings"]
+			return "%s / key %s / IPv6 %s" % (a.get("ListenAddr"), "有" if a.get("ClientKeys") else "空", a.get("IPv6Support"))
+		if kind == "tinyproxy":
+			pth = tinyproxy_conf_path()
+			if pth:
+				port, auth = "?", "无"
+				for line in open(pth):
+					t = line.strip()
+					if t.lower().startswith("port "):
+						port = t.split()[1]
+					if t.lower().startswith("basicauth "):
+						auth = "有"
+				return ":%s / 认证%s" % (port, auth)
+	except Exception:
+		pass
+	return "-"
 
 def write_json(path, obj):
 	tmp = path + ".new"
@@ -834,6 +893,7 @@ def do_power(action):
 		print("   没选任何服务，取消")
 		return
 	for n in targets:
+		log_action("power", "%s %s" % ("停止" if action == "stop" else "启动", n))
 		run("systemctl %s %s 2>&1" % (action, n))
 		if action == "stop":
 			run("systemctl disable %s 2>&1" % n)
@@ -889,6 +949,7 @@ def run_builds(mode):
 	else:
 		print("   进入卸载菜单，按提示选要卸的项目；卸完自动回到这里")
 	print("")
+	log_action("builds", "进入%s菜单" % ("安装" if mode == "install" else "卸载"))
 	env = dict(os.environ)
 	env["PARSO_TASK"] = "1" if mode == "install" else "2"
 	subprocess.call(["sh", p], stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, env=env)
@@ -939,6 +1000,7 @@ def svc_item(n, label, unit, kind):
 	return "   %d. %s  %s" % (n, label, state)
 
 title("修改配置")
+log_action("panel", "打开配置面板")
 modifiable = [n for n, p in (("xray", xray_json), ("cns", cns_json), ("amy4", amy_json), ("tinyproxy", tinyproxy_conf_path())) if os.path.isfile(p)]
 if not modifiable:
 	warn("没有检测到已安装的服务，输入 8 可以现在装")
@@ -970,16 +1032,32 @@ while True:
 		run_builds("uninstall")
 		done = True
 	if "1" in sel and os.path.isfile(xray_json):
+		b4 = snap("xray")
 		edit_xray()
+		aft = snap("xray")
+		if b4 != aft:
+			log_action("xray", "%s → %s" % (b4, aft))
 		done = True
 	if "2" in sel and os.path.isfile(cns_json):
+		b4 = snap("cns")
 		edit_cns()
+		aft = snap("cns")
+		if b4 != aft:
+			log_action("cns", "%s → %s" % (b4, aft))
 		done = True
 	if "3" in sel and os.path.isfile(amy_json):
+		b4 = snap("amy4")
 		edit_amy4()
+		aft = snap("amy4")
+		if b4 != aft:
+			log_action("amy4", "%s → %s" % (b4, aft))
 		done = True
 	if "4" in sel and tinyproxy_conf_path():
+		b4 = snap("tinyproxy")
 		edit_tinyproxy()
+		aft = snap("tinyproxy")
+		if b4 != aft:
+			log_action("tinyproxy", "%s → %s" % (b4, aft))
 		done = True
 	if "5" in sel:
 		do_power("stop")
