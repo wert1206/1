@@ -129,7 +129,7 @@ print("\033[45;37m 当前运行配置 \033[0m")
 kv("主机名", host)
 kv("公网地址", (ip or "未知") + ("" if ip_public else "（本机地址，未探测到公网 IP）"))
 kv("查看时间", now)
-kv("脚本版本", "v3 · 支持 edit（协议/端口/密码/tinyproxy）")
+kv("脚本版本", "v4 · 支持 edit（协议/端口/密码/tinyproxy/0 关闭）")
 
 # ---------- 端口 / 进程 ----------
 ss_out = run("ss -lntp")
@@ -812,8 +812,13 @@ if not modifiable:
 	print("")
 	sys.exit(0)
 print("   可修改：1. xray（协议/端口/UUID）  2. cns（端口/TLS端口/加密密码/代理头域）  3. amy4（端口/ClientKey/IPv6）  4. tinyproxy（端口/认证）")
-choice = ask("   选项目（多个用空格隔开，直接回车退出）: ")
+print("           0. 关闭（退出，什么都不改）")
+choice = ask("   选项目（多个用空格隔开；输入 0 回车关闭）: ")
 sel = set(choice.split())
+if not sel or sel & {"0", "q", "quit", "exit", "关闭"}:
+	print("   已关闭，什么都没改。")
+	print("")
+	sys.exit(0)
 done = False
 if "1" in sel and os.path.isfile(xray_json):
 	edit_xray()
