@@ -1,0 +1,16 @@
+[Unit]
+Description=xray - Project V
+Documentation=https://github.com/XTLS/Xray-core
+ 
+[Service]
+Type=forking
+PIDFile=/usr/local/xray/run.pid
+ExecStart=/usr/local/xray/xray.init systemdStart
+ExecReload=/usr/local/xray/xray.init systemdRestart
+ExecStop=/usr/local/xray/xray.init stop
+PrivateTmp=true
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target
+

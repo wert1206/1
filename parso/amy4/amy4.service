@@ -1,0 +1,16 @@
+[Unit]
+Description=amy4
+After=network.target
+
+[Service]
+Type=forking
+PIDFile=/usr/local/amy4/run.pid
+ExecStart=/usr/local/amy4/amy4.init systemdStart
+ExecReload=/usr/local/amy4/amy4.init systemdRestart
+ExecStop=/usr/local/amy4/amy4.init stop
+PrivateTmp=true
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target
+
