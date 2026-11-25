@@ -198,11 +198,15 @@ Install() {
 	Delete >/dev/null 2>&1
 	InstallInit
 	InstallFiles
-	ret=`"${amy4_install_dir}/amy4.init" start`
-	if ! echo "$ret"|grep -q 'OK' || echo "$ret"|grep -q 'FAILED'; then
-		Error "amy4 install failed."
+	if type systemctl &>/dev/null; then
+		systemctl enable amy4 &>/dev/null
+		systemctl restart amy4 &>/dev/null
+	else
+		ret=`"${amy4_install_dir}/amy4.init" start`
+		if ! echo "$ret"|grep -q 'OK' || echo "$ret"|grep -q 'FAILED'; then
+			Error "amy4 install failed."
+		fi
 	fi
-	type systemctl &>/dev/null && [ -z "$(systemctl --failed|grep -q 'Host is down')" ] && systemctl restart amy4
 	echo $echo_e_arg \
 		"\033[44;37mamy4 install success.\033[0;34m
 		\r	amy4 server port:\033[35G${amy4_port}

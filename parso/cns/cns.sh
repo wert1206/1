@@ -142,8 +142,12 @@ Install() {
 	Delete >/dev/null 2>&1
 	InstallInit
 	InstallFiles
-	"${cns_install_dir}/cns.init" start|grep -q FAILED && Error "cns install failed."
-	type systemctl && [ -z "$(systemctl --failed|grep -q 'Host is down')" ] && systemctl restart cns
+	if type systemctl &>/dev/null; then
+		systemctl enable cns &>/dev/null
+		systemctl restart cns &>/dev/null
+	else
+		"${cns_install_dir}/cns.init" start|grep -q FAILED && Error "cns install failed."
+	fi
 	echo $echo_e_arg \
 		"\033[44;37mcns install success.\033[0;34m
 		\r	cns server port:\033[35G${cns_port}

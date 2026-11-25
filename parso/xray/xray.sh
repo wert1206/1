@@ -462,8 +462,12 @@ Install() {
 	Delete >/dev/null 2>&1
 	InstallInit
 	InstallFile
-	"$xray_install_directory/xray.init" start|grep -q FAILED && Error "xray install failed."
-	which systemctl &>/dev/null && [ -z "$(systemctl --failed|grep -q 'Host is down')" ] && systemctl restart xray &>/dev/null
+	if type systemctl &>/dev/null; then
+		systemctl enable xray &>/dev/null
+		systemctl restart xray &>/dev/null
+	else
+		"$xray_install_directory/xray.init" start|grep -q FAILED && Error "xray install failed."
+	fi
 	echo $echo_e_arg \
 		"\033[44;37mxray install success.\033[0;34m
 		`
