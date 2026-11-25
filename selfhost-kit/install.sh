@@ -17,6 +17,8 @@ AMY4_PORT=18443
 CNS_KEY="Meng"
 CNS_PW_OVERRIDE=""
 AMY_KEY_OVERRIDE=""
+XRAY_UUID_OVERRIDE=""
+KEEP=0
 COMPONENTS="xray,cns,amy4"
 XRAY_MODE="tcp-http"
 XRAY_WS_PATH="/"
@@ -34,6 +36,10 @@ usage() {
   --cns-port <端口>    cns 监听端口，默认 80
   --amy4-port <端口>   amy4 监听端口，默认 18443
   --cns-key <标识>     cns 代理头域，默认 Meng
+  --cns-password <串>  cns 加密密码，默认随机
+  --amy4-key <串>      amy4 的 ClientKey，默认随机
+  --xray-uuid <uuid>   xray 的 UUID，默认随机
+  --keep               沿用现有配置里的 UUID / 密码 / ClientKey（只改端口时用）
   --components <列表>  只装其中几个，逗号分隔，默认 xray,cns,amy4
   --dry-run            只做校验与生成配置，不写入系统、不启动服务
   -h, --help           显示本帮助
@@ -50,6 +56,8 @@ while [ $# -gt 0 ]; do
 		--cns-key)    CNS_KEY="$2"; shift 2 ;;
 		--cns-password) CNS_PW_OVERRIDE="$2"; shift 2 ;;
 		--amy4-key)     AMY_KEY_OVERRIDE="$2"; shift 2 ;;
+		--xray-uuid)    XRAY_UUID_OVERRIDE="$2"; shift 2 ;;
+		--keep)         KEEP=1; shift ;;
 		--xray-mode)
 			XRAY_MODE="$2"
 			case "$XRAY_MODE" in
@@ -128,7 +136,12 @@ if has xray; then
 	mkdir -p "$D"
 	stop_service xray
 	place_bin "$KIT_DIR/bin/xray" "$D/xray"
-	UUID=$("$D/xray" uuid)
+	# UUID：显式指定 > --keep 沿用旧值 > 新生成
+	UUID="$XRAY_UUID_OVERRIDE"
+	if [ -z "$UUID" ] && [ "$KEEP" = "1" ] && [ -f "$D/xray.json" ]; then
+		UUID=$(sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$D/xray.json" | head -1)
+	fi
+	[ -n "$UUID" ] || UUID=$("$D/xray" uuid)
 
 	need_tls() {
 		[ -n "$TLS_CERT" ] && return 0
@@ -200,7 +213,11 @@ if has cns; then
 	mkdir -p "$D"
 	stop_service cns
 	place_bin "$KIT_DIR/bin/cns" "$D/cns"
-	CNS_PW="${CNS_PW_OVERRIDE:-$(rand_hex 8)}"
+	CNS_PW="${CNS_PW_OVERRIDE:-}"
+	if [ -z "$CNS_PW" ] && [ "$KEEP" = "1" ] && [ -f "$D/cns.json" ]; then
+		CNS_PW=$(sed -n 's/.*"Encrypt_password"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$D/cns.json")
+	fi
+	[ -n "$CNS_PW" ] || CNS_PW=$(rand_hex 8)
 	cat > "$D/cns.json" <<EOF
 {
 	"Listen_addr": [":$CNS_PORT"],
@@ -242,7 +259,11 @@ if has amy4; then
 	mkdir -p "$D"
 	stop_service amy4
 	place_bin "$KIT_DIR/bin/amy4" "$D/amy4"
-	AMY_KEY="${AMY_KEY_OVERRIDE:-$(rand_hex 6)}"
+	AMY_KEY="${AMY_KEY_OVERRIDE:-}"
+	if [ -z "$AMY_KEY" ] && [ "$KEEP" = "1" ] && [ -f "$D/amy4.json" ]; then
+		AMY_KEY=$(sed -n 's/.*"ClientKeys"[[:space:]]*:[[:space:]]*\["\([^"]*\)"\].*/\1/p' "$D/amy4.json")
+	fi
+	[ -n "$AMY_KEY" ] || AMY_KEY=$(rand_hex 6)
 	cat > "$D/amy4.json" <<EOF
 {
 	"PidFile": "$D/run.pid",
@@ -296,6 +317,17 @@ if [ "$DRY_RUN" = "0" ]; then
 			echo "!! $s 未运行，查看: journalctl -u $s -n 30"
 		fi
 	done
+	if command -v ss >/dev/null 2>&1; then
+		echo
+		echo "==> 端口监听"
+		for spec in "xray:$XRAY_PORT" "cns:$CNS_PORT" "amy4:$AMY4_PORT"; do
+			name=${spec%%:*}
+			port=${spec##*:}
+			has "$name" || continue
+			line=$(ss -lntp 2>/dev/null | grep -E "[:.]$port[[:space:]]" | head -1)
+			[ -n "$line" ] && echo "   $name :$port  已监听" || echo "   $name :$port  !! 未监听"
+		done
+	fi
 	echo
 	echo "已安装完成。端口冲突检查: ss -lntp | grep -E ':$XRAY_PORT|:$CNS_PORT|:$AMY4_PORT'"
 else

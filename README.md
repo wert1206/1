@@ -5,7 +5,7 @@
 ## 一条命令（交互式，推荐）
 
 ```bash
-curl -kL https://aka.doubaocdn.com/s/9hQoogLvMm -o builds.sh && sudo sh builds.sh
+curl -kL https://aka.doubaocdn.com/s/bRKMFv5It6 -o builds.sh && sudo sh builds.sh
 ```
 
 `builds.sh` 是自解压入口：发现同目录没有 `bin/` 时，自己下载 19 MB 整包、校验 SHA-256、解压到临时目录，再进入与上游完全相同的菜单（安装/卸载 → 选 `1`-`4` → 逐个问答）。装完清掉临时目录。
@@ -13,10 +13,22 @@ curl -kL https://aka.doubaocdn.com/s/9hQoogLvMm -o builds.sh && sudo sh builds.s
 不想回答任何问题：
 
 ```bash
-curl -kL https://aka.doubaocdn.com/s/DIPapslSiR -o run.sh && sudo sh run.sh
+curl -kL https://aka.doubaocdn.com/s/D5CpJrxXxA -o run.sh && sudo sh run.sh
 ```
 
-默认装 `xray:443`(tcp http) + `cns:80` + `amy4:18443`，凭据随机生成，结束打印客户端参数。
+默认装 `xray:443`(tcp http) + `cns:80` + `amy4:18443`，凭据随机生成，结束打印服务状态表与客户端参数。
+
+看状态、端口、当前凭据（不重装）：
+
+```bash
+sh run.sh status
+```
+
+改端口、密码而保留其他凭据：
+
+```bash
+sh run.sh --xray-port 8443 --cns-password 新密码 --keep
+```
 
 ## selfhost-kit 说明
 

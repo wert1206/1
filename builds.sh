@@ -11,8 +11,8 @@
 #
 set -eu
 
-KIT_URL_DEFAULT="https://aka.doubaocdn.com/s/vlDs27hWVl"
-KIT_SHA_DEFAULT="44ee2da845420d0fb3162be1d6be9c60512c4a87b4b78ddd102a11e0926883fe"
+KIT_URL_DEFAULT="https://aka.doubaocdn.com/s/TIwY2x7EgP"
+KIT_SHA_DEFAULT="2a1c3c255af2fa41c984d3e7262d6c4e8877a8ff156239c350612de0e681f4b2"
 
 KIT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 DRY=""
