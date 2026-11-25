@@ -4,14 +4,60 @@
 #   sh go.sh              拉整包 + 部署脚本 + 进安装/卸载菜单
 #   sh go.sh --no-menu    只拉取和部署，不进菜单
 #   sh go.sh --force      远端没变也强制重新下载
+#   sh go.sh --help       显示本用法
 #
 # 环境变量：REPO=abcc123445653/1  BRANCH=main  DIR=/root
+#           FORCE=1（等同 --force）  INSECURE=1（跳过 TLS 校验）
+#           SKIP_CCC=1（不安装 /usr/local/bin/ccc，便于非 root 测试）
 set -eu
 
 REPO="${REPO:-abcc123445653/1}"
 BRANCH="${BRANCH:-main}"
 DIR="${DIR:-/root}"
 TAR="https://codeload.github.com/$REPO/tar.gz/refs/heads/$BRANCH"
+TARBALL="$DIR/repo.tar.gz"
+
+CURL_K=""
+if [ "${INSECURE:-0}" = "1" ]; then CURL_K="-k"; fi
+
+usage() {
+	cat <<'EOF'
+go.sh — 一键拉取 + 部署 + 安装菜单
+
+  sh go.sh              拉整包 + 部署脚本 + 进安装/卸载菜单
+  sh go.sh --no-menu    只拉取和部署，不进菜单
+  sh go.sh --force      远端没变也强制重新下载
+  sh go.sh --help       显示本用法
+
+环境变量：
+  REPO=abcc123445653/1  BRANCH=main  DIR=/root
+  FORCE=1      等同 --force
+  INSECURE=1   跳过 TLS 校验（仅老机器/异常 CA 时用）
+  SKIP_CCC=1   不安装 /usr/local/bin/ccc（非 root 测试用）
+EOF
+}
+
+info() { printf '\033[44;37m %s \033[0m\n' "$*"; }
+die()  { echo "错误: $*" >&2; exit 1; }
+
+menu=1
+for a in "$@"; do
+	case "$a" in
+	--no-menu) menu=0 ;;
+	--force)   FORCE=1 ;;
+	-h|--help) usage; exit 0 ;;
+	*)         echo "未知参数: $a（可用 --no-menu / --force / --help）" >&2; exit 2 ;;
+	esac
+done
+
+# 没设 GH_TOKEN 时，尝试从 /root/.gh_token 读（cron / 非交互 shell 也能用）
+if [ -z "${GH_TOKEN:-}" ] && [ -f /root/.gh_token ]; then
+	GH_TOKEN=$(cat /root/.gh_token 2>/dev/null || true)
+	export GH_TOKEN
+fi
+
+cleanup() { [ "${TAR_DOWNLOADED:-0}" = "1" ] && rm -f "$TARBALL"; }
+trap cleanup 0 1 2 15
 
 # 脚本自己就在整包目录里（codeload 引导解压后直接跑）时，不再联网下载
 SELF_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd || echo "")
@@ -22,28 +68,19 @@ if [ -n "$SELF_DIR" ] && [ -f "$SELF_DIR/parso/builds.sh" ] && [ -f "$SELF_DIR/s
 	LOCAL_KIT=1
 fi
 
-# 没设 GH_TOKEN 时，尝试从 /root/.gh_token 读（cron / 非交互 shell 也能用）
-if [ -z "${GH_TOKEN:-}" ] && [ -f /root/.gh_token ]; then
-	GH_TOKEN=$(cat /root/.gh_token 2>/dev/null || true)
-	export GH_TOKEN
-fi
-
-info() { printf '\033[44;37m %s \033[0m\n' "$*"; }
-die()  { echo "错误: $*" >&2; exit 1; }
-
 remote_rev() {
-	r=$(git ls-remote "https://github.com/$REPO.git" "refs/heads/$BRANCH" 2>/dev/null \
+	r=$(timeout 15 git ls-remote "https://github.com/$REPO.git" "refs/heads/$BRANCH" 2>/dev/null \
 		| sed -n 's/^\([0-9a-f][0-9a-f]*\)[[:space:]].*/\1/p' | head -1)
 	if [ -n "$r" ]; then
 		printf '%s\n' "$r"
 		return 0
 	fi
 	if [ -n "${GH_TOKEN:-}" ]; then
-		curl -kL --no-progress-meter --max-time 20 -H "Authorization: Bearer $GH_TOKEN" \
+		curl $CURL_K -L --no-progress-meter --max-time 20 -H "Authorization: Bearer $GH_TOKEN" \
 			"https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
 			| sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -1
 	else
-		curl -kL --no-progress-meter --max-time 20 "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
+		curl $CURL_K -L --no-progress-meter --max-time 20 "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
 			| sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -1
 	fi
 }
@@ -71,10 +108,11 @@ elif [ "${FORCE:-0}" != "1" ] && [ -n "$rev" ] && [ -f "$DIR/1-main/.kit-rev" ] 
 	echo "  → 已是最新（$(echo "$rev" | cut -c1-8)），跳过整包下载"
 else
 	info "拉整包 $REPO@$BRANCH → $DIR/1-main"
-	curl -kL --progress-bar --max-time 600 "$TAR" -o "$DIR/repo.tar.gz" || die "整包下载失败"
+	TAR_DOWNLOADED=1
+	curl $CURL_K -L --progress-bar --max-time 600 "$TAR" -o "$TARBALL" || die "整包下载失败"
 	rm -rf "$DIR/1-main"
-	tar xzf "$DIR/repo.tar.gz" -C "$DIR" || die "解压失败"
-	rm -f "$DIR/repo.tar.gz"
+	tar xzf "$TARBALL" -C "$DIR" || die "解压失败"
+	rm -f "$TARBALL"
 	echo "  → $DIR/1-main   $(du -sh "$DIR/1-main" 2>/dev/null | cut -f1)"
 	verify_kit
 	if [ -n "$rev" ]; then printf '%s\n' "$rev" > "$DIR/1-main/.kit-rev"; fi
@@ -83,7 +121,7 @@ fi
 # 部署常用入口，之后直接 ccc / sh pull.sh 就能用
 [ -f "$KIT/pull.sh" ] && cp "$KIT/pull.sh" "$DIR/pull.sh" && chmod +x "$DIR/pull.sh" && echo "  → $DIR/pull.sh"
 [ -f "$KIT/status.sh" ] && cp "$KIT/status.sh" "$DIR/status.sh" && chmod +x "$DIR/status.sh" && echo "  → $DIR/status.sh"
-if [ -d /usr/local/bin ] && [ -f "$DIR/status.sh" ]; then
+if [ "${SKIP_CCC:-0}" != "1" ] && [ -d /usr/local/bin ] && [ -f "$DIR/status.sh" ]; then
 	if [ -f "$KIT/ccc.sh" ]; then
 		cp "$KIT/ccc.sh" /usr/local/bin/ccc
 	else
@@ -93,13 +131,6 @@ if [ -d /usr/local/bin ] && [ -f "$DIR/status.sh" ]; then
 	echo "  → /usr/local/bin/ccc   输入 ccc 回车即打开面板"
 fi
 
-menu=1
-for a in "$@"; do
-	case "$a" in
-	--no-menu) menu=0 ;;
-	--force)   FORCE=1 ;;
-	esac
-done
 [ "$menu" = "1" ] || exit 0
 
 info "进入安装菜单"

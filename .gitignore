@@ -19,4 +19,5 @@ Xray-linux-*.zip
 # 拉取/解压产物
 repo.tar.gz
 1-main/
+.kit-rev
 *.new

@@ -1,7 +1,7 @@
 #!/bin/sh
 # token.sh — 保存 / 查看 / 清除 GitHub token（token 本身不进仓库，只存在本机）
 #
-#   sh token.sh                 从标准输入读 token 并保存（推荐，不留在 shell history）
+#   sh token.sh                 从标准输入读 token 并保存（推荐：终端不回显、不进 shell history）
 #   sh token.sh ghp_xxx         直接带参数保存（会进 shell history，慎用）
 #   sh token.sh ghp_xxx --bashrc   同时写进 /root/.bashrc 的 export GH_TOKEN
 #   sh token.sh --show          查看当前是否已配置（脱敏）与额度
@@ -13,11 +13,14 @@ set -eu
 FILE="${TOKEN_FILE:-/root/.gh_token}"
 BRC="${BASHRC:-/root/.bashrc}"
 
+CURL_K=""
+if [ "${INSECURE:-0}" = "1" ]; then CURL_K="-k"; fi
+
 mask() { printf '%s' "$1" | cut -c1-14; }
 
 quota() { # $1=token
 	if [ -n "${1:-}" ]; then
-		curl -kL --no-progress-meter --max-time 20 -H "Authorization: Bearer $1" \
+		curl $CURL_K -L --no-progress-meter --max-time 20 -H "Authorization: Bearer $1" \
 			https://api.github.com/rate_limit 2>/dev/null | python3 -c '
 import sys, json
 try:
@@ -58,8 +61,21 @@ esac
 WITH_BRC=0
 if [ "${1:-}" = "--bashrc" ]; then WITH_BRC=1; shift; fi
 if [ "${1:-}" = "" ]; then
-	printf '粘贴 token 后回车（不回显到命令历史）: '
-	read -r TOK
+	if [ -t 0 ]; then
+		printf '粘贴 token 后回车（不回显）: '
+		if command -v stty >/dev/null 2>&1; then
+			stty -echo 2>/dev/null || true
+			trap 'stty echo 2>/dev/null || true' 0 1 2 15
+			read -r TOK
+			stty echo 2>/dev/null || true
+			trap - 0 1 2 15
+		else
+			read -r TOK
+		fi
+		echo ""
+	else
+		read -r TOK
+	fi
 else
 	TOK="$1"; shift || true
 	[ "${1:-}" = "--bashrc" ] && WITH_BRC=1
@@ -67,7 +83,7 @@ fi
 
 [ -n "${TOK:-}" ] || { echo "错误：没有收到 token" >&2; exit 1; }
 
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -H "Authorization: Bearer $TOK" https://api.github.com/user || echo 000)
+code=$(curl $CURL_K -s -o /dev/null -w '%{http_code}' --max-time 20 -H "Authorization: Bearer $TOK" https://api.github.com/user || echo 000)
 if [ "$code" != "200" ]; then
 	echo "错误：token 验证失败（HTTP $code），没有保存" >&2
 	exit 1

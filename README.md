@@ -2,6 +2,14 @@
 
 把第三方 parso 一键安装套件（xray / cns / amy4 / tinyproxy）复刻成"文件全部来自本仓库"的安装器，外加一个查看 + 修改一体的运维面板。
 
+## 运行依赖
+
+Debian 12 最小系统上先装三样（面板强依赖 python3，拉取用 git，下载用 curl）：
+
+```bash
+apt-get update && apt-get install -y curl git python3
+```
+
 ## 上手三件套
 
 ```bash
@@ -17,7 +25,7 @@ token 只需配一次（见「配置 GitHub token」），之后上面这些命�
 ## 首次部署（空白机器）
 
 ```bash
-curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go.sh \
+curl -L --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go.sh \
   'https://api.github.com/repos/abcc123445653/1/contents/go.sh?ref=main' && sh /root/go.sh
 ```
 
@@ -32,7 +40,7 @@ curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go
 ### 不占 API 额度的引导（额度用完 / 不想用 api.github.com）
 
 ```bash
-rm -rf /root/1-main && curl -kL https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main \
+rm -rf /root/1-main && curl -L https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main \
   | tar xz -C /root && sh /root/1-main/go.sh --no-menu
 ```
 
@@ -41,7 +49,7 @@ rm -rf /root/1-main && curl -kL https://codeload.github.com/abcc123445653/1/tar.
 ## 查看当前运行配置
 
 ```bash
-curl -kL --no-progress-meter -O -H 'Accept: application/vnd.github.raw' 'https://api.github.com/repos/abcc123445653/1/contents/status.sh?ref=main' && sh status.sh
+curl -L --no-progress-meter -O -H 'Accept: application/vnd.github.raw' 'https://api.github.com/repos/abcc123445653/1/contents/status.sh?ref=main' && sh status.sh
 ```
 
 已经解压过整包的，直接跑本地：`sh 1-main/status.sh`。
@@ -103,7 +111,7 @@ sh /root/pull.sh status
 首次先把 `pull.sh` 取下来（之后一直用它，含自我更新）：
 
 ```bash
-curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/pull.sh \
+curl -L --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/pull.sh \
   'https://api.github.com/repos/abcc123445653/1/contents/pull.sh?ref=main'
 ```
 
@@ -143,10 +151,11 @@ sh /root/pull.sh status
 
 ```
 README.md          本说明
-ccc.sh             面板短命令（安装到 /usr/local/bin/ccc）
+LICENSE            原创脚本的 MIT 许可（不含 parso/ 第三方二进制）
+.gitattributes     强制 LF，防止 CRLF 弄坏 #!/bin/sh
 pull.sh            拉取最新（整包 / 面板 / 自身）
 go.sh              一键拉取 + 部署 + 进安装菜单
-status.sh          查看 + 修改一体的面板脚本（v11）
+status.sh          查看 + 修改一体的面板脚本（v12）
 token.sh           存 / 查 / 清 GitHub token（只落本机 /root/.gh_token）
 SHA256SUMS         三个二进制（xray / cns / amy4）的哈希清单，解压后自动校验
 .github/workflows   CI：语法检查、哈希校验、面板冒烟
@@ -163,10 +172,11 @@ vendor-scripts/    上游原版脚本留档（只作对照，不参与安装）
 
 - 所有脚本、init、service、二进制都来自本仓库；`parso/builds.sh` 发现同目录有 `xray/xray.sh` 和 `xray/linux_amd64` 时把下载源切成 `file://` 本地路径，安装过程中 0 次网络请求、0 次第三方中转。
 - 整包约 19 MB，一次拉完；`go.sh` / `pull.sh` 解压后自动 `sha256sum -c SHA256SUMS`，二进制哈希不符直接中止。早期那条 `aka.doubaocdn.com` 临时 CDN 已过期，全部引用已删除。
-- 推 `main` 或打 tag 时 GitHub Actions 会跑：全部 shell 语法检查、`SHA256SUMS` 校验、面板 `printf '0\n' | sh status.sh edit` 冒烟。
+- 顶级脚本（`go.sh` / `pull.sh` / `token.sh` / `status.sh`）默认**校验证书**，不再用 `curl -k`；只有证书异常的老机器才加 `INSECURE=1`（等价 `curl -k`）。`parso/` 内为保持与上游一致仍保留 `-k`，但本地 `file://` 模式安装时不联网。
+- 推 `main` 或打 tag 时 GitHub Actions 会跑：全部 shell 语法检查、`shellcheck -S error`、`SHA256SUMS` 校验、面板 `printf '0\n' | sh status.sh edit` 冒烟，以及 `DIR=临时目录 SKIP_CCC=1 sh go.sh --no-menu` 的部署冒烟。
 - 旧版 `selfhost-kit/`（自解压离线套件、`bootstrap.sh` / `oneclick.sh` / `run.sh` / `install.sh` / `uninstall.sh`）已整体移除，入口只保留 `go.sh` / `pull.sh` / `ccc` 这一套。
 - 卸载不额外问"后台运行吗"、不问安装目录，选完项目直接卸；停服务先 `systemctl stop` 再 `disable` 再删文件。
 
 ## 许可
 
-脚本部分可自由使用。Xray-core 遵循 MIT；cns / amy4 的二进制来源与授权见上游，仓库公开分发前请自行确认授权范围。
+原创脚本与文档采用 MIT 许可，见 [LICENSE](LICENSE)（不覆盖 `parso/` 下第三方二进制）。Xray-core 遵循 MIT；cns / amy4 的二进制来源与授权见上游，仓库公开分发前请自行确认授权范围。

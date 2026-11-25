@@ -6,9 +6,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   shell:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -22,11 +26,26 @@ jobs:
           done
 
       - name: shellcheck（只拦 error 级）
-        run: |
-          shellcheck -S error *.sh parso/builds.sh parso/*/*.sh || true
+        run: shellcheck -S error *.sh parso/builds.sh parso/*/*.sh
 
       - name: 校验二进制哈希清单
         run: sha256sum -c SHA256SUMS
+
+      - name: 入口 --help 可用
+        run: |
+          sh go.sh --help >/dev/null
+          sh pull.sh --help >/dev/null
+
+      - name: 部署冒烟（本地整包模式，不写 /usr/local/bin）
+        run: |
+          set -e
+          TMP=$(mktemp -d)
+          DIR="$TMP" SKIP_CCC=1 sh go.sh --no-menu
+          test -x "$TMP/pull.sh"
+          test -x "$TMP/status.sh"
+          test -s "$TMP/status.sh"
+          test ! -e "$TMP/repo.tar.gz"
+          echo "部署冒烟通过：$TMP"
 
       - name: 面板冒烟（无服务环境，输入 0 应正常退出）
         run: printf '0\n' | sh status.sh edit

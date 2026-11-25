@@ -24,7 +24,7 @@
    <script>window.location.href = "https://binary.quicknet.cyou"</script>
    ```
 
-   装完以后 `tinyproxy` 这个“程序”跑不起来。你自己的服务器 `47.111.156.207:/usr/local/tinyproxy/tinyproxy` 就是这 70 字节，可对照。
+   装完以后 `tinyproxy` 这个“程序”跑不起来。你自己的服务器 `<your-server>:/usr/local/tinyproxy/tinyproxy` 就是这 70 字节，可对照。
 4. **`amy4.sh` 原文硬编码了一组第三方代理凭据。** 第 129、133 行的 `Proxy-Authorization: Basic dWMxMC43LjE2My4xNDQ6...` 与 `X-T5-Auth: 1967948331`，配合伪装成 `curl baiduboxapp` 的 UA。本归档已把这两处替换为 `<REDACTED>`，其余未改。
 
 ## 为什么归档而不推荐

@@ -16,6 +16,7 @@ PYFILE=$(mktemp /tmp/parso-status.XXXXXX.py) || {
 	echo "无法创建临时文件" >&2
 	exit 1
 }
+trap 'rm -f "$PYFILE"' 0 1 2 15
 
 cat >"$PYFILE" <<'PY'
 import json, os, re, shutil, subprocess, datetime, socket, time, sys
@@ -28,7 +29,7 @@ CR = "\033[31m"
 CYEL = "\033[33m"
 
 EDIT = os.environ.get("PARSO_EDIT") == "1"
-VERSION = "v11 · 支持 edit（运行状态 / 操作日志 / 备份留 5 份）"
+VERSION = "v12 · 支持 edit（运行状态 / 操作日志 / 备份留 5 份 / 异常退出清理临时文件）"
 
 def run(cmd):
 	try:
@@ -170,7 +171,7 @@ def pick_ip():
 		return env_ip, True
 	# 服务器常在 NAT 后面（本机只有 172.x），所以先问外网探针要公网 IP
 	for url in ("https://ifconfig.me/ip", "https://ipinfo.io/ip", "https://api.ipify.org", "https://4.ipw.cn"):
-		out = run("curl -k -s -m 4 %s" % url)
+		out = run("curl -s -m 4 %s" % url)
 		m = re.search(r"\d+\.\d+\.\d+\.\d+", out or "")
 		if m:
 			return m.group(0), True
@@ -935,7 +936,7 @@ def ensure_kit():
 	if os.path.isfile("/root/pull.sh"):
 		rc = subprocess.call(["sh", "/root/pull.sh", "kit"])
 	if rc != 0:
-		rc = subprocess.call(["sh", "-c", "curl -kL --progress-bar https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main | tar xz -C /root"])
+		rc = subprocess.call(["sh", "-c", "curl -L --progress-bar https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main | tar xz -C /root"])
 	if rc != 0:
 		fail("整包拉取失败，检查网络后重试")
 		return ""
@@ -1083,6 +1084,7 @@ if [ "$1" = "edit" ] || [ "$1" = "-e" ]; then
 	fi
 	echo ""
 	echo "已执行修改，下面是刷新后的完整状态："
+	rm -f "$PYFILE"
 	exec sh "$0"
 else
 	python3 "$PYFILE"

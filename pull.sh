@@ -1,11 +1,12 @@
 #!/bin/sh
-# pull.sh — 从本仓库拉取最新文件到本机（版本 v2）
+# pull.sh — 从本仓库拉取最新文件到本机（版本 v3）
 #
 #   sh pull.sh            拉整包 + 更新面板脚本 status.sh + 装好 ccc（推荐）
 #   sh pull.sh status     只更新 status.sh（1 个请求，最快）
 #   sh pull.sh kit        只拉整包（装/升级 parso 用）
 #   sh pull.sh self       只把 pull.sh 自身更新成仓库最新版
 #   FORCE=1 sh pull.sh    远端没变也强制重新下载
+#   INSECURE=1            跳过 TLS 校验（仅老机器/异常 CA 时用）
 #
 # 可用环境变量覆盖：REPO=abcc123445653/1  BRANCH=main  DIR=/root
 set -eu
@@ -15,6 +16,11 @@ BRANCH="${BRANCH:-main}"
 DIR="${DIR:-/root}"
 RAW="https://api.github.com/repos/$REPO/contents"
 TAR="https://codeload.github.com/$REPO/tar.gz/refs/heads/$BRANCH"
+TARBALL="$DIR/repo.tar.gz"
+mkdir -p "$DIR"
+
+CURL_K=""
+if [ "${INSECURE:-0}" = "1" ]; then CURL_K="-k"; fi
 
 # 没设 GH_TOKEN 时，尝试从 /root/.gh_token 读（cron / 非交互 shell 也能用）
 if [ -z "${GH_TOKEN:-}" ] && [ -f /root/.gh_token ]; then
@@ -25,19 +31,34 @@ fi
 info() { printf '\033[44;37m %s \033[0m\n' "$*"; }
 die()  { echo "错误: $*" >&2; exit 1; }
 
+usage() {
+	cat <<'EOF'
+pull.sh — 从本仓库拉取最新文件（版本 v3）
+
+  sh pull.sh            拉整包 + 更新面板脚本 status.sh + 装好 ccc（推荐）
+  sh pull.sh status     只更新 status.sh（1 个请求，最快）
+  sh pull.sh kit        只拉整包（装/升级 parso 用）
+  sh pull.sh self       只把 pull.sh 自身更新成仓库最新版
+  FORCE=1 sh pull.sh    远端没变也强制重新下载
+  INSECURE=1            跳过 TLS 校验（仅老机器/异常 CA 时用）
+
+环境变量：REPO=abcc123445653/1  BRANCH=main  DIR=/root
+EOF
+}
+
 remote_rev() {
-	r=$(git ls-remote "https://github.com/$REPO.git" "refs/heads/$BRANCH" 2>/dev/null \
+	r=$(timeout 15 git ls-remote "https://github.com/$REPO.git" "refs/heads/$BRANCH" 2>/dev/null \
 		| sed -n 's/^\([0-9a-f][0-9a-f]*\)[[:space:]].*/\1/p' | head -1)
 	if [ -n "$r" ]; then
 		printf '%s\n' "$r"
 		return 0
 	fi
 	if [ -n "${GH_TOKEN:-}" ]; then
-		curl -kL --no-progress-meter --max-time 20 -H "Authorization: Bearer $GH_TOKEN" \
+		curl $CURL_K -L --no-progress-meter --max-time 20 -H "Authorization: Bearer $GH_TOKEN" \
 			"https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
 			| sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -1
 	else
-		curl -kL --no-progress-meter --max-time 20 "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
+		curl $CURL_K -L --no-progress-meter --max-time 20 "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
 			| sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -1
 	fi
 }
@@ -51,18 +72,22 @@ verify_kit() {
 	fi
 }
 
+cleanup() { [ "${TAR_DOWNLOADED:-0}" = "1" ] && rm -f "$TARBALL"; }
+trap cleanup 0 1 2 15
+
 
 api_get() { # $1=url $2=out $3=timeout
 	if [ -n "${GH_TOKEN:-}" ]; then
-		curl -kL --no-progress-meter --max-time "$3" -H "Authorization: Bearer $GH_TOKEN" \
+		curl $CURL_K -L --no-progress-meter --max-time "$3" -H "Authorization: Bearer $GH_TOKEN" \
 			-H 'Accept: application/vnd.github.raw' -o "$2" "$1" >/dev/null 2>&1 || true
 	else
-		curl -kL --no-progress-meter --max-time "$3" -H 'Accept: application/vnd.github.raw' \
+		curl $CURL_K -L --no-progress-meter --max-time "$3" -H 'Accept: application/vnd.github.raw' \
 			-o "$2" "$1" >/dev/null 2>&1 || true
 	fi
 }
 
 install_ccc() {
+	[ "${SKIP_CCC:-0}" != "1" ] || return 0
 	[ -d /usr/local/bin ] || return 0
 	src=""
 	for c in "$DIR/1-main/ccc.sh" "$DIR/ccc.sh"; do
@@ -70,7 +95,7 @@ install_ccc() {
 	done
 	if [ -z "$src" ]; then
 		api_get "$RAW/ccc.sh?ref=$BRANCH" /usr/local/bin/ccc 30
-		grep -q 'ccc' /usr/local/bin/ccc 2>/dev/null || \
+		head -1 /usr/local/bin/ccc 2>/dev/null | grep -q '^#!' || \
 			printf '#!/bin/sh\nexec sh %s/status.sh edit "$@"\n' "$DIR" > /usr/local/bin/ccc
 	else
 		cp "$src" /usr/local/bin/ccc
@@ -88,10 +113,11 @@ get_kit() {
 		return 0
 	fi
 	info "拉整包 $REPO@$BRANCH → $DIR/1-main"
-	curl -kL --progress-bar --max-time 600 "$TAR" -o "$DIR/repo.tar.gz" || die "整包下载失败"
+	TAR_DOWNLOADED=1
+	curl $CURL_K -L --progress-bar --max-time 600 "$TAR" -o "$TARBALL" || die "整包下载失败"
 	rm -rf "$DIR/1-main"
-	tar xzf "$DIR/repo.tar.gz" -C "$DIR" || die "解压失败"
-	rm -f "$DIR/repo.tar.gz"
+	tar xzf "$TARBALL" -C "$DIR" || die "解压失败"
+	rm -f "$TARBALL"
 	echo "  → $DIR/1-main   $(du -sh "$DIR/1-main" 2>/dev/null | cut -f1)"
 	verify_kit
 	if [ -n "$rev" ]; then printf '%s\n' "$rev" > "$DIR/1-main/.kit-rev"; fi
@@ -133,7 +159,7 @@ self)   get_self ;;
 kit)    get_kit ;;
 all|"") get_kit; get_status ;;
 -h|--help|help)
-	sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
+	usage ;;
 *)
 	echo "用法: sh pull.sh [all|status|kit|self]" >&2
 	exit 2 ;;

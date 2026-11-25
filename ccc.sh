@@ -7,6 +7,6 @@ elif [ -f /usr/local/bin/status.sh ]; then
 	exec sh /usr/local/bin/status.sh edit "$@"
 else
 	echo "找不到 status.sh，先执行："
-	echo "  curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/status.sh 'https://api.github.com/repos/abcc123445653/1/contents/status.sh?ref=main'"
+	echo "  curl -L --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/status.sh 'https://api.github.com/repos/abcc123445653/1/contents/status.sh?ref=main'"
 	exit 1
 fi

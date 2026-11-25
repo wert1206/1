@@ -1,0 +1,11 @@
+# 统一按 LF 存盘：脚本里的 #!/bin/sh 在 CRLF 下会直接报 bad interpreter
+* text=auto eol=lf
+
+*.sh   text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# 二进制不做换行转换
+*.tar.gz binary
+parso/*/linux_amd64 binary
