@@ -62,6 +62,7 @@ mkdir -p "$DIR"
 rev=$(remote_rev || true)
 if [ "$LOCAL_KIT" = "1" ]; then
 	echo "  → 已在整包里（$KIT），跳过下载"
+	verify_kit
 	if [ -n "$rev" ] && [ ! -f "$KIT/.kit-rev" ]; then
 		printf '%s\n' "$rev" > "$KIT/.kit-rev" 2>/dev/null || true
 	fi
