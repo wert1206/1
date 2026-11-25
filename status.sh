@@ -129,7 +129,7 @@ print("\033[45;37m 当前运行配置 \033[0m")
 kv("主机名", host)
 kv("公网地址", (ip or "未知") + ("" if ip_public else "（本机地址，未探测到公网 IP）"))
 kv("查看时间", now)
-kv("脚本版本", "v4 · 支持 edit（协议/端口/密码/tinyproxy/0 关闭）")
+kv("脚本版本", "v5 · 支持 edit（改配置/启停服务/0 关闭）")
 
 # ---------- 端口 / 进程 ----------
 ss_out = run("ss -lntp")
@@ -805,6 +805,51 @@ def edit_tinyproxy():
 		cur_port or "-",
 		"（无）" if auth_clear or not cur_user else "%s : %s" % (cur_user, cur_pw)))
 
+def svc_units():
+	names = []
+	for name, d in (("xray", "/usr/local/xray"), ("cns", "/usr/local/cns"), ("amy4", "/usr/local/amy4"), ("tinyproxy", "")):
+		if name == "tinyproxy":
+			if not (tinyproxy_conf_path() or run("command -v tinyproxy")):
+				continue
+		elif not os.path.isdir(d):
+			continue
+		names.append(name)
+	return names
+
+def do_power(action):
+	names = svc_units()
+	if not names:
+		print("   没有已安装的服务")
+		return
+	title("停止服务" if action == "stop" else "启动服务")
+	for i, n in enumerate(names, 1):
+		st = run("systemctl is-active %s" % n) or "unknown"
+		color = CG if st == "active" else CR
+		print("   %d. %-10s %s%s%s" % (i, n, color, st, C0))
+	sel = ask("   输入要%s的服务编号（多个用空格隔开，回车取消）: " % ("停止" if action == "stop" else "启动"))
+	idxs = sorted({int(x) for x in sel.split() if x.isdigit()})
+	targets = [names[i - 1] for i in idxs if 1 <= i <= len(names)]
+	if not targets:
+		print("   没选任何服务，取消")
+		return
+	for n in targets:
+		run("systemctl %s %s 2>&1" % (action, n))
+		time.sleep(2)
+		st = run("systemctl is-active %s" % n) or "unknown"
+		if action == "stop":
+			if st == "inactive":
+				ok("%s 已停止" % n)
+			else:
+				fail("%s 停止后状态是 %s" % (n, st))
+		else:
+			if st == "active":
+				ok("%s 已启动" % n)
+			else:
+				fail("%s 启动失败，状态是 %s" % (n, st))
+				log = run("journalctl -u %s -n 8 --no-pager 2>/dev/null | tail -8" % n)
+				if log:
+					print(log)
+
 title("修改配置")
 modifiable = [n for n, p in (("xray", xray_json), ("cns", cns_json), ("amy4", amy_json), ("tinyproxy", tinyproxy_conf_path())) if os.path.isfile(p)]
 if not modifiable:
@@ -812,6 +857,8 @@ if not modifiable:
 	print("")
 	sys.exit(0)
 print("   可修改：1. xray（协议/端口/UUID）  2. cns（端口/TLS端口/加密密码/代理头域）  3. amy4（端口/ClientKey/IPv6）  4. tinyproxy（端口/认证）")
+print("           5. 停止服务（systemctl stop）")
+print("           6. 启动服务（systemctl start）")
 print("           0. 关闭（退出，什么都不改）")
 choice = ask("   选项目（多个用空格隔开；输入 0 回车关闭）: ")
 sel = set(choice.split())
@@ -831,6 +878,12 @@ if "3" in sel and os.path.isfile(amy_json):
 	done = True
 if "4" in sel and tinyproxy_conf_path():
 	edit_tinyproxy()
+	done = True
+if "5" in sel:
+	do_power("stop")
+	done = True
+if "6" in sel:
+	do_power("start")
 	done = True
 if not done:
 	print("   没有改动")
