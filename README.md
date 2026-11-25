@@ -102,6 +102,19 @@ curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/pu
   'https://api.github.com/repos/abcc123445653/1/contents/pull.sh?ref=main'
 ```
 
+## 配置 GitHub token（可选）
+
+脚本默认匿名跑（60 次/小时/IP），日常够用。要把额度提到 5000 次/小时，用 `token.sh` 把**只读** token 存到本机（token 本身不进仓库，仓库只放脚本）：
+
+```bash
+sh token.sh                 # 粘贴 token 回车（不留在 shell 历史），存到 /root/.gh_token（600）
+sh token.sh --show          # 查看是否已配置（脱敏）与当前额度
+sh token.sh --clear         # 清除 token
+sh token.sh ghp_xxx --bashrc   # 顺便写进 /root/.bashrc 的 export GH_TOKEN
+```
+
+`pull.sh` / `go.sh` / `parso/builds.sh` 启动时按这个顺序取 token：环境变量 `GH_TOKEN` → `/root/.gh_token`，所以配一次之后 cron、非交互 shell 都能用。token 只用 `Contents: Read` 就够；写操作（建 Release、传资产）另行临时授权。
+
 ## 目录结构
 
 ```
@@ -110,6 +123,7 @@ ccc.sh             面板短命令（安装到 /usr/local/bin/ccc）
 pull.sh            拉取最新（整包 / 面板 / 自身）
 go.sh              一键拉取 + 部署 + 进安装菜单
 status.sh          查看 + 修改一体的面板脚本（v11）
+token.sh           存 / 查 / 清 GitHub token（只落本机 /root/.gh_token）
 SHA256SUMS         三个二进制 + 面板脚本的哈希清单，解压后自动校验
 .github/workflows   CI：语法检查、哈希校验、面板冒烟
 parso/             安装器本体，与上游目录结构一致，二进制随仓库分发
