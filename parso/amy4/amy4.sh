@@ -3,6 +3,7 @@ BASE="${BASE:-https://api.github.com/repos/abcc123445653/1/contents/parso}"
 
 #Stop amy4 & delete amy4 files.
 Delete() {
+	systemctl stop amy4.service 2>/dev/null
 	systemctl disable amy4.service
 	chkconfig --del amy4
 	/etc/init.d/amy4 disable

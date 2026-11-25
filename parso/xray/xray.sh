@@ -3,6 +3,7 @@ BASE="${BASE:-https://api.github.com/repos/abcc123445653/1/contents/parso}"
 
 #Stop xray & delete xray files.
 Delete() {
+	systemctl stop xray.service 2>/dev/null
 	systemctl disable xray.service
 	rm -rf /etc/init.d/xray /lib/systemd/system/xray.service
 	if [ -f "${xray_install_directory:=/usr/local/xray}/xray.init" ]; then

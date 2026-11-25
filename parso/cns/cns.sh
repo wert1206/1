@@ -6,6 +6,7 @@ BASE="${BASE:-https://api.github.com/repos/abcc123445653/1/contents/parso}"
 
 #Stop cns & delete cns files.
 Delete() {
+	systemctl stop cns.service 2>/dev/null
 	systemctl disable cns.service
 	rm -f /etc/init.d/cns /lib/systemd/system/cns.service
 	if [ -f "${cns_install_dir:=/usr/local/cns}/cns.init" ]; then
