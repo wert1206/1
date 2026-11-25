@@ -15,7 +15,13 @@ XRAY_PORT=443
 CNS_PORT=80
 AMY4_PORT=18443
 CNS_KEY="Meng"
+CNS_PW_OVERRIDE=""
+AMY_KEY_OVERRIDE=""
 COMPONENTS="xray,cns,amy4"
+XRAY_MODE="tcp-http"
+XRAY_WS_PATH="/"
+TLS_CERT=""
+TLS_KEY=""
 DRY_RUN=0
 
 die() { echo "错误: $*" >&2; exit 1; }
@@ -42,6 +48,18 @@ while [ $# -gt 0 ]; do
 		--cns-port)   CNS_PORT="$2"; shift 2 ;;
 		--amy4-port)  AMY4_PORT="$2"; shift 2 ;;
 		--cns-key)    CNS_KEY="$2"; shift 2 ;;
+		--cns-password) CNS_PW_OVERRIDE="$2"; shift 2 ;;
+		--amy4-key)     AMY_KEY_OVERRIDE="$2"; shift 2 ;;
+		--xray-mode)
+			XRAY_MODE="$2"
+			case "$XRAY_MODE" in
+				tcp-http|tcp-tls|ws|ws-tls) ;;
+				*) die "xray 模式只支持: tcp-http / tcp-tls / ws / ws-tls" ;;
+			esac
+			shift 2 ;;
+		--xray-ws-path) XRAY_WS_PATH="$2"; shift 2 ;;
+		--tls-cert)   TLS_CERT="$2"; shift 2 ;;
+		--tls-key)    TLS_KEY="$2"; shift 2 ;;
 		--components) COMPONENTS="$2"; shift 2 ;;
 		--dry-run)    DRY_RUN=1; shift ;;
 		-h|--help)    usage; exit 0 ;;
@@ -89,6 +107,31 @@ if has xray; then
 	cp "$KIT_DIR/bin/xray" "$D/xray"
 	chmod 755 "$D/xray"
 	UUID=$("$D/xray" uuid)
+
+	need_tls() {
+		[ -n "$TLS_CERT" ] && return 0
+		command -v openssl >/dev/null 2>&1 || die "缺少 openssl，无法生成自签证书"
+		openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
+			-keyout "$D/key.pem" -out "$D/cert.pem" -subj "/CN=localhost" >/dev/null 2>&1 \
+			|| die "生成自签证书失败"
+		TLS_CERT="$D/cert.pem"
+		TLS_KEY="$D/key.pem"
+	}
+
+	case "$XRAY_MODE" in
+		tcp-http)
+			STREAM="\"sockopt\": { \"tcpFastOpen\": true }, \"network\": \"tcp\", \"tcpSettings\": { \"header\": { \"type\": \"http\" } }" ;;
+		tcp-tls)
+			need_tls
+			STREAM="\"network\": \"tcp\", \"security\": \"tls\", \"tlsSettings\": { \"certificates\": [{ \"certificateFile\": \"$TLS_CERT\", \"keyFile\": \"$TLS_KEY\" }] }" ;;
+		ws)
+			STREAM="\"network\": \"ws\", \"wsSettings\": { \"path\": \"$XRAY_WS_PATH\" }" ;;
+		ws-tls)
+			need_tls
+			STREAM="\"network\": \"ws\", \"security\": \"tls\", \"tlsSettings\": { \"certificates\": [{ \"certificateFile\": \"$TLS_CERT\", \"keyFile\": \"$TLS_KEY\" }] }, \"wsSettings\": { \"path\": \"$XRAY_WS_PATH\" }" ;;
+		*) die "未知 xray 模式: $XRAY_MODE" ;;
+	esac
+
 	cat > "$D/xray.json" <<EOF
 {
 	"log": { "loglevel": "warning" },
@@ -100,11 +143,7 @@ if has xray; then
 			"clients": [{ "id": "$UUID", "level": 0, "alterId": 0 }],
 			"decryption": "none"
 		},
-		"streamSettings": {
-			"sockopt": { "tcpFastOpen": true },
-			"network": "tcp",
-			"tcpSettings": { "header": { "type": "http" } }
-		}
+		"streamSettings": { $STREAM }
 	}],
 	"outbounds": [{ "protocol": "freedom", "tag": "direct" }]
 }
@@ -131,7 +170,7 @@ LimitNOFILE=65535
 WantedBy=multi-user.target
 EOF
 	fi
-	echo "==> xray 就绪 (端口 $XRAY_PORT, UUID $UUID)"
+	echo "==> xray 就绪 (端口 $XRAY_PORT, 模式 $XRAY_MODE, UUID $UUID)"
 fi
 
 # ---------------- cns ----------------
@@ -140,7 +179,7 @@ if has cns; then
 	mkdir -p "$D"
 	cp "$KIT_DIR/bin/cns" "$D/cns"
 	chmod 755 "$D/cns"
-	CNS_PW=$(rand_hex 8)
+	CNS_PW="${CNS_PW_OVERRIDE:-$(rand_hex 8)}"
 	cat > "$D/cns.json" <<EOF
 {
 	"Listen_addr": [":$CNS_PORT"],
@@ -183,7 +222,7 @@ if has amy4; then
 	mkdir -p "$D"
 	cp "$KIT_DIR/bin/amy4" "$D/amy4"
 	chmod 755 "$D/amy4"
-	AMY_KEY=$(rand_hex 6)
+	AMY_KEY="${AMY_KEY_OVERRIDE:-$(rand_hex 6)}"
 	cat > "$D/amy4.json" <<EOF
 {
 	"PidFile": "$D/run.pid",

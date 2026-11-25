@@ -28,6 +28,28 @@ sudo sh oneclick.sh
 
 参数原样透传给 `selfhost-kit/install.sh`。第二条要求本机已配置能读这个私有仓库的 SSH 密钥；想换仓库地址用 `REPO_URL=...` 覆盖。
 
+## 交互式菜单（builds.sh）
+
+保留了上游 `builds.sh` 的菜单结构：先选安装／卸载，再选项目（`1` tinyproxy / `2` cns / `3` xray / `4` amy4），然后逐个问端口和密码。
+
+```bash
+sudo ./builds.sh              # 交互
+sudo ./builds.sh --dry-run    # 只生成配置并自检，不动系统
+```
+
+与上游的差异：
+
+| 项 | 上游 | 本套件 |
+|---|---|---|
+| 文件来源 | 运行时从 binary.parso.org 下载 | 本目录 `bin/`，不联网 |
+| tinyproxy | 可装 | **不可用**，上游源返回 70 字节跳转页，引导用 `apt install tinyproxy` |
+| xray 入站 | 10 种 | 支持 `1` tcp http、`2` tcp tls、`4` ws、`5` ws tls；reality / vless ws / mkcp / trojan 暂不支持 |
+| UPX | 可选 | 无（本地已是最终二进制） |
+| 安装目录 | 可自定义 | 固定 `/usr/local/<组件>` |
+| cns tls 端口 | 可选 | 未启用 |
+
+xray `2` / `5` 需要 TLS，若未提供证书则用 `openssl` 生成自签证书放在 `/usr/local/xray/{cert,key}.pem`。
+
 ## 安装
 
 `bin/` 已随本仓库提交（仓库为私有）。装之前先自己验一遍：
