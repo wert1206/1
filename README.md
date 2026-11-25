@@ -11,8 +11,8 @@
 推荐先取回脚本再执行，不要直接管道给 `sh`：
 
 ```bash
-git clone https://github.com/<owner>/<repo>.git
-cd <repo>
+git clone https://github.com/abcc123445653/1.git
+cd 1
 sudo ./install.sh --port 8443 --open-port
 ```
 
