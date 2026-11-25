@@ -23,8 +23,14 @@ remote_rev() {
 		printf '%s\n' "$r"
 		return 0
 	fi
-	curl -kL --no-progress-meter --max-time 20 "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
-		| sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -1
+	if [ -n "${GH_TOKEN:-}" ]; then
+		curl -kL --no-progress-meter --max-time 20 -H "Authorization: Bearer $GH_TOKEN" \
+			"https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
+			| sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -1
+	else
+		curl -kL --no-progress-meter --max-time 20 "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
+			| sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -1
+	fi
 }
 
 verify_kit() {

@@ -80,6 +80,12 @@ sh /root/pull.sh self     # 只把 pull.sh 自身更新成仓库最新版
 
 **增量**：远端 commit 没变就直接跳过整包下载（版本号记在 `/root/1-main/.kit-rev`，用 `git ls-remote` 查、不占 API 限额），重复执行约 1 秒（实测 0.93 秒）；要强制重下加 `--force`（`sh /root/go.sh --force`）或 `FORCE=1 sh /root/pull.sh kit`。
 
+**限额**：默认匿名 60 次/小时/IP。把有 `Contents: Read` 权限的 token 存进 `GH_TOKEN`，脚本里的 `api.github.com` 请求会自动带上 `Authorization`，额度变 5000 次/小时：
+
+```bash
+echo 'export GH_TOKEN=ghp_xxx' >> /root/.bashrc && . /root/.bashrc
+```
+
 首次先把 `pull.sh` 取下来（之后一直用它，含自我更新）：
 
 ```bash

@@ -26,8 +26,14 @@ remote_rev() {
 		printf '%s\n' "$r"
 		return 0
 	fi
-	curl -kL --no-progress-meter --max-time 20 "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
-		| sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -1
+	if [ -n "${GH_TOKEN:-}" ]; then
+		curl -kL --no-progress-meter --max-time 20 -H "Authorization: Bearer $GH_TOKEN" \
+			"https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
+			| sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -1
+	else
+		curl -kL --no-progress-meter --max-time 20 "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null \
+			| sed -n 's/.*"sha"[[:space:]]*:[[:space:]]*"\([0-9a-f][0-9a-f]*\)".*/\1/p' | head -1
+	fi
 }
 
 verify_kit() {
@@ -40,6 +46,16 @@ verify_kit() {
 }
 
 
+api_get() { # $1=url $2=out $3=timeout
+	if [ -n "${GH_TOKEN:-}" ]; then
+		curl -kL --no-progress-meter --max-time "$3" -H "Authorization: Bearer $GH_TOKEN" \
+			-H 'Accept: application/vnd.github.raw' -o "$2" "$1" >/dev/null 2>&1 || true
+	else
+		curl -kL --no-progress-meter --max-time "$3" -H 'Accept: application/vnd.github.raw' \
+			-o "$2" "$1" >/dev/null 2>&1 || true
+	fi
+}
+
 install_ccc() {
 	[ -d /usr/local/bin ] || return 0
 	src=""
@@ -47,8 +63,7 @@ install_ccc() {
 		[ -f "$c" ] && src="$c" && break
 	done
 	if [ -z "$src" ]; then
-		curl -kL --no-progress-meter --max-time 30 -H 'Accept: application/vnd.github.raw' \
-			-o /usr/local/bin/ccc "$RAW/ccc.sh?ref=$BRANCH" >/dev/null 2>&1 || true
+		api_get "$RAW/ccc.sh?ref=$BRANCH" /usr/local/bin/ccc 30
 		grep -q 'ccc' /usr/local/bin/ccc 2>/dev/null || \
 			printf '#!/bin/sh\nexec sh %s/status.sh edit "$@"\n' "$DIR" > /usr/local/bin/ccc
 	else
@@ -79,8 +94,7 @@ get_kit() {
 get_self() {
 	info "更新 pull.sh 自身"
 	rm -f "$DIR/pull.sh.new"
-	curl -kL --no-progress-meter --max-time 60 -H 'Accept: application/vnd.github.raw' \
-		-o "$DIR/pull.sh.new" "$RAW/pull.sh?ref=$BRANCH" >/dev/null 2>&1 || true
+	api_get "$RAW/pull.sh?ref=$BRANCH" "$DIR/pull.sh.new" 60
 	[ -s "$DIR/pull.sh.new" ] && grep -q 'pull.sh' "$DIR/pull.sh.new" || { rm -f "$DIR/pull.sh.new"; die "拉取 pull.sh 失败（可能限额）"; }
 	mv "$DIR/pull.sh.new" "$DIR/pull.sh"
 	chmod +x "$DIR/pull.sh"
@@ -92,8 +106,7 @@ get_status() {
 	info "更新面板脚本 status.sh"
 	mkdir -p "$DIR"
 	rm -f "$DIR/status.sh.new"
-	curl -kL --no-progress-meter --max-time 90 -H 'Accept: application/vnd.github.raw' \
-		-o "$DIR/status.sh.new" "$RAW/status.sh?ref=$BRANCH" >/dev/null 2>&1 || true
+	api_get "$RAW/status.sh?ref=$BRANCH" "$DIR/status.sh.new" 90
 	if [ ! -s "$DIR/status.sh.new" ] || ! grep -q 'PARSO_EDIT' "$DIR/status.sh.new" 2>/dev/null; then
 		rm -f "$DIR/status.sh.new"
 		echo "  接口取不到（可能限额），改从整包取"
