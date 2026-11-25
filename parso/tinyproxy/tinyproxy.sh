@@ -63,8 +63,8 @@ InstallFiles() {
 	GetAbi
 	mkdir -p "$tinyproxy_install_dir" || Error "Create tinyproxy install directory failed."
 	cd "$tinyproxy_install_dir" || exit 1
-	dl tinyproxy ${BASE}/tinyproxy/${tinyproxy_UPX}/linux_${machine}?ref=main || Error "tinyproxy download failed."
-	dl tinyproxy.init ${BASE}/tinyproxy/tinyproxy.init?ref=main || Error "tinyproxy.init download failed."
+	dl tinyproxy ${BASE}/tinyproxy/${tinyproxy_UPX}/linux_${machine} || Error "tinyproxy download failed."
+	dl tinyproxy.init ${BASE}/tinyproxy/tinyproxy.init || Error "tinyproxy.init download failed."
 	sed -i "s~\[tinyproxy_start_cmd\]~$tinyproxy_start_cmd~g" tinyproxy.init
 	sed -i "s~\[tinyproxy_install_dir\]~$tinyproxy_install_dir~g" tinyproxy.init
 	sed -i "s~\[tinyproxy_tcp_port_list\]~$tinyproxy_port $tinyproxy_tls_port~g" tinyproxy.init
@@ -80,7 +80,7 @@ InstallFiles() {
 	EOF
 	chmod -R 777 "$tinyproxy_install_dir" /etc/init.d/tinyproxy
 	if type systemctl &>/dev/null && [ -z "$(systemctl --failed|grep -q 'Host is down')" ]; then
-		dl /lib/systemd/system/tinyproxy.service ${BASE}/tinyproxy/tinyproxy.service?ref=main || Error "tinyproxy.service download failed."
+		dl /lib/systemd/system/tinyproxy.service ${BASE}/tinyproxy/tinyproxy.service || Error "tinyproxy.service download failed."
 		chmod 777 /lib/systemd/system/tinyproxy.service
 		sed -i "s~\[tinyproxy_install_dir\]~$tinyproxy_install_dir~g"  /lib/systemd/system/tinyproxy.service
 		systemctl daemon-reload
@@ -95,17 +95,21 @@ InstallInit() {
 	echo "$update"|grep -qi 'y' && $PM -y update
 	$PM -y install curl wget unzip
 	dl() {
+	case "$2" in
+		*api.github.com*) _u="$2?ref=main" ;;
+		*) _u="$2" ;;
+	esac
 	if type curl &>/dev/null; then
 		if [ -n "${GH_TOKEN:-}" ]; then
-			curl -fsSL -k -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" -o "$1" "$2"
+			curl -fsSL -k -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" -o "$1" "$_u"
 		else
-			curl -fsSL -k -H "Accept: application/vnd.github.raw" -o "$1" "$2"
+			curl -fsSL -k -H "Accept: application/vnd.github.raw" -o "$1" "$_u"
 		fi
 	else
 		if [ -n "${GH_TOKEN:-}" ]; then
-			wget -q --no-check-certificate --header="Authorization: Bearer $GH_TOKEN" --header='Accept: application/vnd.github.raw' -O "$1" "$2"
+			wget -q --no-check-certificate --header="Authorization: Bearer $GH_TOKEN" --header='Accept: application/vnd.github.raw' -O "$1" "$_u"
 		else
-			wget -q --no-check-certificate --header='Accept: application/vnd.github.raw' -O "$1" "$2"
+			wget -q --no-check-certificate --header='Accept: application/vnd.github.raw' -O "$1" "$_u"
 		fi
 	fi
 }

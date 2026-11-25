@@ -81,8 +81,8 @@ InstallFiles() {
 	fi
 	mkdir -p "$amy4_install_dir" || Error "Create amy4 install directory failed."
 	cd "$amy4_install_dir" || exit 1
-	download_tool amy4 ${BASE}/amy4/${amy4_UPX:+$amy4_UPX/}${os}_${machine}${softfloat}?ref=main || Error "amy4 download failed."
-	download_tool amy4.init ${BASE}/amy4/amy4.init?ref=main || Error "amy4.init download failed."
+	download_tool amy4 ${BASE}/amy4/${amy4_UPX:+$amy4_UPX/}${os}_${machine}${softfloat} || Error "amy4 download failed."
+	download_tool amy4.init ${BASE}/amy4/amy4.init || Error "amy4.init download failed."
 	[ -f '/etc/rc.common' ] && rcCommon='/etc/rc.common'
 	sed -i "s~#!/bin/sh~#!$SHELL $rcCommon~" amy4.init
 	sed -i "s~\[amy4_install_dir\]~$amy4_install_dir~g" amy4.init
@@ -111,7 +111,7 @@ InstallFiles() {
 	EOF
 	chmod -R +rwx "$amy4_install_dir" /etc/init.d/amy4
 	if type systemctl &>/dev/null && [ -z "$(systemctl --failed|grep -q 'Host is down')" ]; then
-		download_tool /lib/systemd/system/amy4.service ${BASE}/amy4/amy4.service?ref=main || Error "amy4.service download failed."
+		download_tool /lib/systemd/system/amy4.service ${BASE}/amy4/amy4.service || Error "amy4.service download failed."
 		chmod +rwx /lib/systemd/system/amy4.service
 		sed -i "s~\[amy4_install_dir\]~$amy4_install_dir~g"  /lib/systemd/system/amy4.service
 		systemctl daemon-reload
@@ -128,18 +128,26 @@ InstallInit() {
 	$PM -y install curl wget unzip sed
 	if type curl &>/dev/null; then
 		download_tool() {
+			case "$2" in
+				*api.github.com*) _u="$2?ref=main" ;;
+				*) _u="$2" ;;
+			esac
 			if [ -n "${GH_TOKEN:-}" ]; then
-				curl -fsSL -k -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" -o $@
+				curl -fsSL -k -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" -o "$1" "$_u"
 			else
-				curl -fsSL -k -H "Accept: application/vnd.github.raw" -o $@
+				curl -fsSL -k -H "Accept: application/vnd.github.raw" -o "$1" "$_u"
 			fi
 		}
 	else
 		download_tool() {
+			case "$2" in
+				*api.github.com*) _u="$2?ref=main" ;;
+				*) _u="$2" ;;
+			esac
 			if [ -n "${GH_TOKEN:-}" ]; then
-				wget -q --no-check-certificate --header="Authorization: Bearer $GH_TOKEN" --header='Accept: application/vnd.github.raw' -O $@
+				wget -q --no-check-certificate --header="Authorization: Bearer $GH_TOKEN" --header='Accept: application/vnd.github.raw' -O "$1" "$_u"
 			else
-				wget -q --no-check-certificate --header='Accept: application/vnd.github.raw' -O $@
+				wget -q --no-check-certificate --header='Accept: application/vnd.github.raw' -O "$1" "$_u"
 			fi
 		}
 	fi

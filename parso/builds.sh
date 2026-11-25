@@ -1,5 +1,10 @@
 #!/bin/sh
 BASE="${BASE:-https://api.github.com/repos/abcc123445653/1/contents/parso}"
+SELF=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ -f "$SELF/xray/xray.sh" ] && [ -f "$SELF/xray/linux_amd64" ]; then
+	BASE="file://$SELF"
+fi
+export BASE
 
 option() {
 	echo -n $echo_opt_e "1. 安装项目\n2. 卸载项目\n请输入选项(默认为1): "
@@ -148,7 +153,7 @@ amy4_set() {
 }
 
 tinyproxy_task() {
-	if dl tinyproxy.sh ${BASE}/tinyproxy/tinyproxy.sh?ref=main; then
+	if dl tinyproxy.sh ${BASE}/tinyproxy/tinyproxy.sh; then
 		chmod 777 tinyproxy.sh
 		sed -i "s~#\!/bin/bash~#\!$SHELL~" tinyproxy.sh
 		./tinyproxy.sh $task_type && \
@@ -161,7 +166,7 @@ tinyproxy_task() {
 }
 
 cns_task() {
-	if dl cns.sh ${BASE}/cns/cns.sh?ref=main; then
+	if dl cns.sh ${BASE}/cns/cns.sh; then
 		chmod 777 cns.sh
 		sed -i "s~#\!/bin/bash~#\!$SHELL~" cns.sh
 		echo $echo_opt_e "n\ny\ny\ny\ny\n"|./cns.sh $task_type && \
@@ -174,7 +179,7 @@ cns_task() {
 }
 
 xray_task() {
-	if dl xray.sh ${BASE}/xray/xray.sh?ref=main; then
+	if dl xray.sh ${BASE}/xray/xray.sh; then
 		chmod 777 xray.sh
 		sed -i "s~#\!/bin/bash~#\!$SHELL~" xray.sh
 		echo $echo_opt_e "n\ny\ny\ny\ny\n"|./xray.sh $task_type && \
@@ -187,7 +192,7 @@ xray_task() {
 }
 
 amy4_task() {
-	if dl amy4.sh ${BASE}/amy4/amy4.sh?ref=main; then
+	if dl amy4.sh ${BASE}/amy4/amy4.sh; then
 		chmod 777 amy4.sh
 		sed -i "s~#\!/bin/bash~#\!$SHELL~" amy4.sh
 		echo $echo_opt_e "n"|./amy4.sh $task_type && \
@@ -283,17 +288,21 @@ script_init() {
 	PM=`which apt-get || which yum`
 	type curl || type wget || $PM -y install curl wget
 	dl() {
+	case "$2" in
+		*api.github.com*) _u="$2?ref=main" ;;
+		*) _u="$2" ;;
+	esac
 	if type curl &>/dev/null; then
 		if [ -n "${GH_TOKEN:-}" ]; then
-			curl -fsSL -k -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" -o "$1" "$2"
+			curl -fsSL -k -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" -o "$1" "$_u"
 		else
-			curl -fsSL -k -H "Accept: application/vnd.github.raw" -o "$1" "$2"
+			curl -fsSL -k -H "Accept: application/vnd.github.raw" -o "$1" "$_u"
 		fi
 	else
 		if [ -n "${GH_TOKEN:-}" ]; then
-			wget -q --no-check-certificate --header="Authorization: Bearer $GH_TOKEN" --header='Accept: application/vnd.github.raw' -O "$1" "$2"
+			wget -q --no-check-certificate --header="Authorization: Bearer $GH_TOKEN" --header='Accept: application/vnd.github.raw' -O "$1" "$_u"
 		else
-			wget -q --no-check-certificate --header='Accept: application/vnd.github.raw' -O "$1" "$2"
+			wget -q --no-check-certificate --header='Accept: application/vnd.github.raw' -O "$1" "$_u"
 		fi
 	fi
 }

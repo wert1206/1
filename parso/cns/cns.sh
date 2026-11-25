@@ -73,8 +73,8 @@ InstallFiles() {
 	fi
 	mkdir -p "$cns_install_dir" || Error "Create cns install directory failed."
 	cd "$cns_install_dir" || exit 1
-	dl cns ${BASE}/cns/${cns_UPX:+$cns_UPX/}linux_${machine}${softfloat}?ref=main || Error "cns download failed."
-	dl cns.init ${BASE}/cns/cns.init?ref=main || Error "cns.init download failed."
+	dl cns ${BASE}/cns/${cns_UPX:+$cns_UPX/}linux_${machine}${softfloat} || Error "cns download failed."
+	dl cns.init ${BASE}/cns/cns.init || Error "cns.init download failed."
 	[ -f '/etc/rc.common' ] && rcCommon='/etc/rc.common'
 	sed -i "s~#!/bin/sh~#!$SHELL $rcCommon~" cns.init
 	sed -i "s~\[cns_start_cmd\]~$cns_start_cmd~g" cns.init
@@ -101,7 +101,7 @@ InstallFiles() {
 	EOF
 	chmod -R +rwx "$cns_install_dir" /etc/init.d/cns
 	if type systemctl && [ -z "$(systemctl --failed|grep -q 'Host is down')" ]; then
-		dl /lib/systemd/system/cns.service ${BASE}/cns/cns.service?ref=main || Error "cns.service download failed."
+		dl /lib/systemd/system/cns.service ${BASE}/cns/cns.service || Error "cns.service download failed."
 		chmod +rwx /lib/systemd/system/cns.service
 		sed -i "s~\[cns_install_dir\]~$cns_install_dir~g"  /lib/systemd/system/cns.service
 		systemctl daemon-reload
@@ -117,17 +117,21 @@ InstallInit() {
 	echo "$update"|grep -qi 'y' && $PM -y update
 	$PM -y install curl wget unzip
 	dl() {
+	case "$2" in
+		*api.github.com*) _u="$2?ref=main" ;;
+		*) _u="$2" ;;
+	esac
 	if type curl &>/dev/null; then
 		if [ -n "${GH_TOKEN:-}" ]; then
-			curl -fsSL -k -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" -o "$1" "$2"
+			curl -fsSL -k -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" -o "$1" "$_u"
 		else
-			curl -fsSL -k -H "Accept: application/vnd.github.raw" -o "$1" "$2"
+			curl -fsSL -k -H "Accept: application/vnd.github.raw" -o "$1" "$_u"
 		fi
 	else
 		if [ -n "${GH_TOKEN:-}" ]; then
-			wget -q --no-check-certificate --header="Authorization: Bearer $GH_TOKEN" --header='Accept: application/vnd.github.raw' -O "$1" "$2"
+			wget -q --no-check-certificate --header="Authorization: Bearer $GH_TOKEN" --header='Accept: application/vnd.github.raw' -O "$1" "$_u"
 		else
-			wget -q --no-check-certificate --header='Accept: application/vnd.github.raw' -O "$1" "$2"
+			wget -q --no-check-certificate --header='Accept: application/vnd.github.raw' -O "$1" "$_u"
 		fi
 	fi
 }

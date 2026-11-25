@@ -269,8 +269,8 @@ InstallFile() {
 	mkdir -p "${xray_install_directory:=/usr/local/xray}" || Error "Create xray install directory failed."
 	cd "$xray_install_directory" || Error "Create cns install directory failed."
 	#install xray
-	dl xray ${BASE}/xray/${xray_UPX:+$xray_UPX/}linux_${machine}${softfloat}?ref=main || Error "xray download failed."
-	dl xray.init ${BASE}/xray/xray.init?ref=main || Error "xray.init download failed."
+	dl xray ${BASE}/xray/${xray_UPX:+$xray_UPX/}linux_${machine}${softfloat} || Error "xray download failed."
+	dl xray.init ${BASE}/xray/xray.init || Error "xray.init download failed."
 	[ -f '/etc/rc.common' ] && rcCommon='/etc/rc.common'
 	sed -i "s~#!/bin/sh~#!$SHELL $rcCommon~" xray.init
 	sed -i "s~\[xray_install_directory\]~$xray_install_directory~g" xray.init
@@ -279,7 +279,7 @@ InstallFile() {
 	ln -s "$xray_install_directory/xray.init" /etc/init.d/xray
 	chmod -R +rwx "$xray_install_directory" /etc/init.d/xray
 	if which systemctl &>/dev/null && [ -z "$(systemctl --failed|grep -q 'Host is down')" ]; then
-		dl /lib/systemd/system/xray.service ${BASE}/xray/xray.service?ref=main || Error "xray.service download failed."
+		dl /lib/systemd/system/xray.service ${BASE}/xray/xray.service || Error "xray.service download failed."
 		chmod +rwx /lib/systemd/system/xray.service
 		sed -i "s~\[xray_install_directory\]~$xray_install_directory~g" /lib/systemd/system/xray.service
 		systemctl daemon-reload
@@ -348,17 +348,21 @@ InstallInit() {
 	echo "$update"|grep -qi 'y' && $PM -y update
 	$PM -y install curl wget #unzip
 	dl() {
+	case "$2" in
+		*api.github.com*) _u="$2?ref=main" ;;
+		*) _u="$2" ;;
+	esac
 	if type curl &>/dev/null; then
 		if [ -n "${GH_TOKEN:-}" ]; then
-			curl -fsSL -k -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" -o "$1" "$2"
+			curl -fsSL -k -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" -o "$1" "$_u"
 		else
-			curl -fsSL -k -H "Accept: application/vnd.github.raw" -o "$1" "$2"
+			curl -fsSL -k -H "Accept: application/vnd.github.raw" -o "$1" "$_u"
 		fi
 	else
 		if [ -n "${GH_TOKEN:-}" ]; then
-			wget -q --no-check-certificate --header="Authorization: Bearer $GH_TOKEN" --header='Accept: application/vnd.github.raw' -O "$1" "$2"
+			wget -q --no-check-certificate --header="Authorization: Bearer $GH_TOKEN" --header='Accept: application/vnd.github.raw' -O "$1" "$_u"
 		else
-			wget -q --no-check-certificate --header='Accept: application/vnd.github.raw' -O "$1" "$2"
+			wget -q --no-check-certificate --header='Accept: application/vnd.github.raw' -O "$1" "$_u"
 		fi
 	fi
 }
