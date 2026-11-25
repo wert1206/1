@@ -1,5 +1,5 @@
 #!/bin/sh
-BASE="${BASE:-https://gh-proxy.com/https://raw.githubusercontent.com/abcc123445653/1/main/parso}"
+BASE="${BASE:-https://api.github.com/repos/abcc123445653/1/contents/parso}"
 
 option() {
 	echo -n $echo_opt_e "1. 安装项目\n2. 卸载项目\n请输入选项(默认为1): "
@@ -144,7 +144,7 @@ amy4_set() {
 }
 
 tinyproxy_task() {
-	if $download_tool_cmd tinyproxy.sh ${BASE}/tinyproxy/tinyproxy.sh; then
+	if dl tinyproxy.sh ${BASE}/tinyproxy/tinyproxy.sh?ref=main; then
 		chmod 777 tinyproxy.sh
 		sed -i "s~#\!/bin/bash~#\!$SHELL~" tinyproxy.sh
 		./tinyproxy.sh $task_type && \
@@ -157,7 +157,7 @@ tinyproxy_task() {
 }
 
 cns_task() {
-	if $download_tool_cmd cns.sh ${BASE}/cns/cns.sh; then
+	if dl cns.sh ${BASE}/cns/cns.sh?ref=main; then
 		chmod 777 cns.sh
 		sed -i "s~#\!/bin/bash~#\!$SHELL~" cns.sh
 		echo $echo_opt_e "n\ny\ny\ny\ny\n"|./cns.sh $task_type && \
@@ -170,7 +170,7 @@ cns_task() {
 }
 
 xray_task() {
-	if $download_tool_cmd xray.sh ${BASE}/xray/xray.sh; then
+	if dl xray.sh ${BASE}/xray/xray.sh?ref=main; then
 		chmod 777 xray.sh
 		sed -i "s~#\!/bin/bash~#\!$SHELL~" xray.sh
 		echo $echo_opt_e "n\ny\ny\ny\ny\n"|./xray.sh $task_type && \
@@ -183,7 +183,7 @@ xray_task() {
 }
 
 amy4_task() {
-	if $download_tool_cmd amy4.sh ${BASE}/amy4/amy4.sh; then
+	if dl amy4.sh ${BASE}/amy4/amy4.sh?ref=main; then
 		chmod 777 amy4.sh
 		sed -i "s~#\!/bin/bash~#\!$SHELL~" amy4.sh
 		echo $echo_opt_e "n"|./amy4.sh $task_type && \
@@ -226,7 +226,7 @@ amy4_uninstall_set() {
 server_install_set() {
 	for opt in $*; do
 		case $opt in
-			1) tinyproxy_set;;
+			1) echo "   → tinyproxy: 本仓库没有可用二进制，本次跳过";;
 			2) cns_set;;
 			3) xray_set;;
 			4) amy4_set;;
@@ -250,7 +250,7 @@ server_uninstall_set() {
 start_task() {
 	for opt in $*; do
 		case $opt in
-			1) tinyproxy_task;;
+			1) echo "   → tinyproxy: 本仓库没有可用二进制（上游那份是 70 字节跳转页），本次跳过";;
 			2) cns_task;;
 			3) xray_task;;
 			4) amy4_task;;
@@ -277,7 +277,21 @@ script_init() {
 	echo -e '' | grep -q 'e' && echo_opt_e='' || echo_opt_e='-e' #dash的echo没有-e选项
 	PM=`which apt-get || which yum`
 	type curl || type wget || $PM -y install curl wget
-	type curl && download_tool_cmd='curl -sko' || download_tool_cmd='wget --no-check-certificate -qO'
+	dl() {
+	if type curl &>/dev/null; then
+		if [ -n "${GH_TOKEN:-}" ]; then
+			curl -fsSL -k -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" -o "$1" "$2"
+		else
+			curl -fsSL -k -H "Accept: application/vnd.github.raw" -o "$1" "$2"
+		fi
+	else
+		if [ -n "${GH_TOKEN:-}" ]; then
+			wget -q --no-check-certificate --header="Authorization: Bearer $GH_TOKEN" --header='Accept: application/vnd.github.raw' -O "$1" "$2"
+		else
+			wget -q --no-check-certificate --header='Accept: application/vnd.github.raw' -O "$1" "$2"
+		fi
+	fi
+}
 	rm -f builds.log builds.out
 	clear
 }

@@ -1,5 +1,5 @@
 #!/bin/bash
-BASE="${BASE:-https://gh-proxy.com/https://raw.githubusercontent.com/abcc123445653/1/main/parso}"
+BASE="${BASE:-https://api.github.com/repos/abcc123445653/1/contents/parso}"
 
 #Stop xray & delete xray files.
 Delete() {
@@ -268,8 +268,8 @@ InstallFile() {
 	mkdir -p "${xray_install_directory:=/usr/local/xray}" || Error "Create xray install directory failed."
 	cd "$xray_install_directory" || Error "Create cns install directory failed."
 	#install xray
-	$download_tool_cmd xray ${BASE}/xray/${xray_UPX:+$xray_UPX/}linux_${machine}${softfloat} || Error "xray download failed."
-	$download_tool_cmd xray.init ${BASE}/xray/xray.init || Error "xray.init download failed."
+	dl xray ${BASE}/xray/${xray_UPX:+$xray_UPX/}linux_${machine}${softfloat}?ref=main || Error "xray download failed."
+	dl xray.init ${BASE}/xray/xray.init?ref=main || Error "xray.init download failed."
 	[ -f '/etc/rc.common' ] && rcCommon='/etc/rc.common'
 	sed -i "s~#!/bin/sh~#!$SHELL $rcCommon~" xray.init
 	sed -i "s~\[xray_install_directory\]~$xray_install_directory~g" xray.init
@@ -278,7 +278,7 @@ InstallFile() {
 	ln -s "$xray_install_directory/xray.init" /etc/init.d/xray
 	chmod -R +rwx "$xray_install_directory" /etc/init.d/xray
 	if which systemctl &>/dev/null && [ -z "$(systemctl --failed|grep -q 'Host is down')" ]; then
-		$download_tool_cmd /lib/systemd/system/xray.service ${BASE}/xray/xray.service || Error "xray.service download failed."
+		dl /lib/systemd/system/xray.service ${BASE}/xray/xray.service?ref=main || Error "xray.service download failed."
 		chmod +rwx /lib/systemd/system/xray.service
 		sed -i "s~\[xray_install_directory\]~$xray_install_directory~g" /lib/systemd/system/xray.service
 		systemctl daemon-reload
@@ -346,10 +346,24 @@ InstallInit() {
 	PM=$(command -v apt-get || command -v yum)
 	echo "$update"|grep -qi 'y' && $PM -y update
 	$PM -y install curl wget #unzip
-	type curl && download_tool_cmd='curl -L --connect-timeout 7 -ko' || download_tool_cmd='wget -T 60 --no-check-certificate -O'
+	dl() {
+	if type curl &>/dev/null; then
+		if [ -n "${GH_TOKEN:-}" ]; then
+			curl -fsSL -k -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw" -o "$1" "$2"
+		else
+			curl -fsSL -k -H "Accept: application/vnd.github.raw" -o "$1" "$2"
+		fi
+	else
+		if [ -n "${GH_TOKEN:-}" ]; then
+			wget -q --no-check-certificate --header="Authorization: Bearer $GH_TOKEN" --header='Accept: application/vnd.github.raw' -O "$1" "$2"
+		else
+			wget -q --no-check-certificate --header='Accept: application/vnd.github.raw' -O "$1" "$2"
+		fi
+	fi
+}
 	getip_urls="http://myip.parso.org http://myip.dnsomatic.com/ http://ip.sb/"
 	for url in $getip_urls; do
-		ip=`$download_tool_cmd - "$url" | grep -E '([0-9]{1,3}\.){3}[0-9]{1,3}|:'`
+		ip=`dl - "$url" | grep -E '([0-9]{1,3}\.){3}[0-9]{1,3}|:'`
 		[ -n "$ip" ] && break
 	done
 }
