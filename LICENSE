@@ -19,10 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-说明：本许可仅覆盖本仓库中的原创脚本与文档（go.sh、pull.sh、status.sh、
-ccc.sh、token.sh、README.md 等）。parso/ 与 vendor-scripts/ 下的第三方脚本
-及二进制（Xray-core、cns、amy4、tinyproxy）版权归各自上游所有，其授权范围
-请自行向上游确认。

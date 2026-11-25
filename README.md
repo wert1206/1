@@ -151,7 +151,8 @@ sh /root/pull.sh status
 
 ```
 README.md          本说明
-LICENSE            原创脚本的 MIT 许可（不含 parso/ 第三方二进制）
+LICENSE            原创脚本与文档的 MIT 许可
+NOTICE             第三方组件（parso/ 二进制）授权说明
 .gitattributes     强制 LF，防止 CRLF 弄坏 #!/bin/sh
 pull.sh            拉取最新（整包 / 面板 / 自身）
 go.sh              一键拉取 + 部署 + 进安装菜单
@@ -179,4 +180,4 @@ vendor-scripts/    上游原版脚本留档（只作对照，不参与安装）
 
 ## 许可
 
-原创脚本与文档采用 MIT 许可，见 [LICENSE](LICENSE)（不覆盖 `parso/` 下第三方二进制）。Xray-core 遵循 MIT；cns / amy4 的二进制来源与授权见上游，仓库公开分发前请自行确认授权范围。
+原创脚本与文档采用 MIT 许可，见 [LICENSE](LICENSE)；`parso/` 下第三方二进制的授权说明见 [NOTICE](NOTICE)。Xray-core 遵循 MIT；cns / amy4 的二进制来源与授权见上游，仓库公开分发前请自行确认授权范围。
