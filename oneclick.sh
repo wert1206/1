@@ -11,7 +11,7 @@
 #
 set -eu
 
-REPO_DEFAULT="git@github.com:abcc123445653/1.git"
+REPO_DEFAULT="${REPO_URL:-https://github.com/abcc123445653/1.git}"
 SELF=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 KIT="$SELF/selfhost-kit/install.sh"
 
@@ -34,10 +34,12 @@ if [ -n "${GH_TOKEN:-}" ]; then
 	git clone --depth 1 "$REPO" "$TMP/repo" 2>/dev/null \
 		|| die "克隆失败：检查 token 是否有效、是否勾选了该仓库的 Contents: Read"
 else
-	REPO="${REPO_URL:-$REPO_DEFAULT}"
 	GH_KEY="${GH_KEY:-$HOME/.ssh/github_1}"
 	if [ -f "$GH_KEY" ]; then
+		REPO="git@github.com:abcc123445653/1.git"
 		export GIT_SSH_COMMAND="ssh -i $GH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+	else
+		REPO="$REPO_DEFAULT"
 	fi
 	echo "==> 未检测到本地套件，从 $REPO 克隆"
 	git clone --depth 1 "$REPO" "$TMP/repo" 2>/dev/null \
