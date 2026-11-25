@@ -84,6 +84,28 @@ echo "==> 校验 bin/ 完整性"
 
 rand_hex() { head -c "$1" /dev/urandom | od -An -tx1 | tr -d ' \n'; }
 
+# 停服务并等它真的退出，避免覆盖正在运行的二进制
+stop_service() {
+	[ "$DRY_RUN" = "0" ] || return 0
+	systemctl stop "$1" >/dev/null 2>&1 || true
+	i=0
+	while systemctl is-active --quiet "$1" >/dev/null 2>&1 && [ "$i" -lt 10 ]; do
+		sleep 0.5
+		i=$((i + 1))
+	done
+	return 0
+}
+
+# 先写 .new 再改名：即使目标文件正被进程占用也能替换（rename 不受 ETXTBSY 限制）
+place_bin() {
+	if cp "$1" "$2.new" 2>/dev/null && chmod 755 "$2.new" && mv -f "$2.new" "$2" 2>/dev/null; then
+		return 0
+	fi
+	rm -f "$2.new" 2>/dev/null || true
+	rm -f "$2" 2>/dev/null || true
+	cp "$1" "$2" && chmod 755 "$2" || die "写入 $2 失败（文件被占用？先 systemctl stop ${2##*/}）"
+}
+
 if [ "$DRY_RUN" = "1" ]; then
 	ROOT_DIR=$(mktemp -d)
 	echo "==> 干跑模式，写入 $ROOT_DIR"
@@ -104,8 +126,8 @@ write_unit() {
 if has xray; then
 	D=$(target_dir xray)
 	mkdir -p "$D"
-	cp "$KIT_DIR/bin/xray" "$D/xray"
-	chmod 755 "$D/xray"
+	stop_service xray
+	place_bin "$KIT_DIR/bin/xray" "$D/xray"
 	UUID=$("$D/xray" uuid)
 
 	need_tls() {
@@ -152,7 +174,6 @@ EOF
 		|| die "xray 配置自检未通过"
 
 	if [ "$DRY_RUN" = "0" ]; then
-		systemctl stop xray >/dev/null 2>&1 || true
 		write_unit xray <<EOF
 [Unit]
 Description=Xray Service
@@ -177,8 +198,8 @@ fi
 if has cns; then
 	D=$(target_dir cns)
 	mkdir -p "$D"
-	cp "$KIT_DIR/bin/cns" "$D/cns"
-	chmod 755 "$D/cns"
+	stop_service cns
+	place_bin "$KIT_DIR/bin/cns" "$D/cns"
 	CNS_PW="${CNS_PW_OVERRIDE:-$(rand_hex 8)}"
 	cat > "$D/cns.json" <<EOF
 {
@@ -195,7 +216,6 @@ if has cns; then
 }
 EOF
 	if [ "$DRY_RUN" = "0" ]; then
-		systemctl stop cns >/dev/null 2>&1 || true
 		write_unit cns <<EOF
 [Unit]
 Description=CNS Tunnel Service
@@ -220,8 +240,8 @@ fi
 if has amy4; then
 	D=$(target_dir amy4)
 	mkdir -p "$D"
-	cp "$KIT_DIR/bin/amy4" "$D/amy4"
-	chmod 755 "$D/amy4"
+	stop_service amy4
+	place_bin "$KIT_DIR/bin/amy4" "$D/amy4"
 	AMY_KEY="${AMY_KEY_OVERRIDE:-$(rand_hex 6)}"
 	cat > "$D/amy4.json" <<EOF
 {
@@ -240,7 +260,6 @@ if has amy4; then
 }
 EOF
 	if [ "$DRY_RUN" = "0" ]; then
-		systemctl stop amy4 >/dev/null 2>&1 || true
 		write_unit amy4 <<EOF
 [Unit]
 Description=Amy4 ANet Service

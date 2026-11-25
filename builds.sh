@@ -11,8 +11,8 @@
 #
 set -eu
 
-KIT_URL_DEFAULT="https://aka.doubaocdn.com/s/EtnukKA35s"
-KIT_SHA_DEFAULT="f90f527dfd4f4a91dbec668a97a0f40ce713ca85464a91c05ff1925640e3c542"
+KIT_URL_DEFAULT="https://aka.doubaocdn.com/s/vlDs27hWVl"
+KIT_SHA_DEFAULT="44ee2da845420d0fb3162be1d6be9c60512c4a87b4b78ddd102a11e0926883fe"
 
 KIT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 DRY=""
@@ -275,7 +275,8 @@ if [ "$task_type" = "install" ]; then
 			echo "已连续 $try 次没有选中可安装的组件，退出"
 			exit 1
 		fi
-		printf '\n请重新选择项目(多个用空格隔开，默认 2 3 4): '
+		printf '\n提示: 1 是 tinyproxy，本套件装不了；要装 xray/cns/amy4 请选 2 3 4\n'
+		printf '请重新选择项目(多个用空格隔开，默认 2 3 4): '
 		ask ''
 		[ -n "$REPLY" ] || REPLY="2 3 4"
 		build_projects="$REPLY"
