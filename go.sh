@@ -13,6 +13,12 @@ BRANCH="${BRANCH:-main}"
 DIR="${DIR:-/root}"
 TAR="https://codeload.github.com/$REPO/tar.gz/refs/heads/$BRANCH"
 
+# 没设 GH_TOKEN 时，尝试从 /root/.gh_token 读（cron / 非交互 shell 也能用）
+if [ -z "${GH_TOKEN:-}" ] && [ -f /root/.gh_token ]; then
+	GH_TOKEN=$(cat /root/.gh_token 2>/dev/null || true)
+	export GH_TOKEN
+fi
+
 info() { printf '\033[44;37m %s \033[0m\n' "$*"; }
 die()  { echo "错误: $*" >&2; exit 1; }
 
