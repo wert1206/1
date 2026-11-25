@@ -42,6 +42,7 @@ printf '#!/bin/sh\nexec sh /root/status.sh edit "$@"\n' > /usr/local/bin/ccc && 
 sh /root/pull.sh          # 拉整包到 /root/1-main + 更新面板脚本 + 顺手装好 ccc
 sh /root/pull.sh status   # 只更新面板脚本 status.sh（1 个请求，实测 0.7 秒）
 sh /root/pull.sh kit      # 只拉整包（装 / 升级 parso 用）
+sh /root/pull.sh self     # 只更新 pull.sh 自身到仓库最新版
 ```
 
 第一次用先把 `pull.sh` 取下来（之后就一直用它）：
