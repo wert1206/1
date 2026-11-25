@@ -58,6 +58,16 @@ curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/pu
 
 本仓库含两套东西：`parso/`（照上游目录结构的同款菜单安装器）和 `selfhost-kit/`（离线套件）。**来源固定、哈希校验、失败即中止。**
 
+最省事的一个入口 `go.sh`：拉整包 → 部署好 `ccc` / `pull.sh` / `status.sh` → 直接进安装菜单。
+
+```bash
+curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go.sh 'https://api.github.com/repos/abcc123445653/1/contents/go.sh?ref=main' && sh /root/go.sh
+```
+
+只拉取和部署、不进菜单：`sh /root/go.sh --no-menu`。
+
+不用 `go.sh` 的等价写法（拉整包后自己进目录）：
+
 ```bash
 curl -kL https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main | tar xz && cd 1-main/parso && sh builds.sh
 ```
