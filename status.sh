@@ -78,7 +78,7 @@ def write_json(path, obj):
 		json.dump(obj, f, ensure_ascii=False, indent=2)
 	os.replace(tmp, path)
 
-def restart_check(name, ports, bak=""):
+def restart_check(name, ports, bak="", path=""):
 	run("systemctl restart %s 2>&1" % name)
 	time.sleep(2)
 	st = run("systemctl is-active %s" % name)
@@ -88,8 +88,14 @@ def restart_check(name, ports, bak=""):
 		log = run("journalctl -u %s -n 10 --no-pager 2>/dev/null | tail -10" % name)
 		if log:
 			print(log)
-		if bak:
-			warn("原配置备份在 %s ，要回退直接 cp 回去再 systemctl restart %s" % (bak, name))
+		if bak and path and os.path.isfile(bak):
+			try:
+				shutil.copy2(bak, path)
+				run("systemctl restart %s 2>/dev/null" % name)
+				time.sleep(2)
+				warn("已自动回滚到原配置（%s），%s 现在是 %s" % (bak, name, run("systemctl is-active %s" % name)))
+			except Exception as e:
+				fail("自动回滚失败: %s，请手动 cp %s %s" % (e, bak, path))
 		return False
 	ok("%s 已重启，%s 正常监听" % (name, ", ".join(":" + p for p in ports)))
 	return True
@@ -123,7 +129,7 @@ print("\033[45;37m 当前运行配置 \033[0m")
 kv("主机名", host)
 kv("公网地址", (ip or "未知") + ("" if ip_public else "（本机地址，未探测到公网 IP）"))
 kv("查看时间", now)
-kv("脚本版本", "v2 · 支持 sh status.sh edit")
+kv("脚本版本", "v3 · 支持 edit（协议/端口/密码/tinyproxy）")
 
 # ---------- 端口 / 进程 ----------
 ss_out = run("ss -lntp")
@@ -150,11 +156,22 @@ SERVICES = [
 	("tinyproxy", "/usr/local/tinyproxy"),
 ]
 
+def tinyproxy_conf_path():
+	for p in ("/usr/local/tinyproxy/tinyproxy.conf", "/etc/tinyproxy/tinyproxy.conf"):
+		if os.path.isfile(p):
+			return p
+	return ""
+
+def svc_present(name, d):
+	if name == "tinyproxy":
+		return bool(tinyproxy_conf_path()) or bool(run("command -v tinyproxy"))
+	return os.path.isdir(d)
+
 title("服务状态")
 print("   %s%-10s %-10s %-10s %-22s %s%s" % (CB, "项目", "状态", "开机自启", "监听端口", "PID", C0))
 installed = []
 for name, d in SERVICES:
-	if not os.path.isdir(d):
+	if not svc_present(name, d):
 		print("   %-10s %s未安装%s" % (name, "\033[90m", C0))
 		continue
 	installed.append(name)
@@ -338,27 +355,32 @@ else:
 
 # ---------- tinyproxy ----------
 title("tinyproxy")
-tp_dir = "/usr/local/tinyproxy"
-if not os.path.isdir(tp_dir):
-	print("   %s未安装（本仓库不含该二进制，安装时会跳过）%s" % ("\033[90m", C0))
+tp_conf = tinyproxy_conf_path()
+if not tp_conf:
+	print("   %s未安装（本仓库不含该二进制，可用 apt install tinyproxy 装）%s" % ("\033[90m", C0))
 else:
-	kv("安装目录", tp_dir)
-	conf = os.path.join(tp_dir, "tinyproxy.conf")
-	if os.path.isfile(conf):
-		txt = open(conf, errors="ignore").read()
-		port = re.search(r"^\s*Port\s+(\d+)", txt, re.M)
-		kv("监听端口", port.group(1) if port else "-")
-		for key in ("Allow", "BasicAuthUser", "BasicAuthPassword"):
-			m = re.search(r"^\s*%s\s+(.+)$" % key, txt, re.M)
-			if m:
-				kv(key, m.group(1).strip())
+	kv("配置文件", tp_conf)
+	txt = open(tp_conf, errors="ignore").read()
+	port = re.search(r"^\s*Port\s+(\d+)", txt, re.M)
+	kv("监听端口", port.group(1) if port else "-")
+	auths = [m.group(1).strip() for m in re.finditer(r"^\s*BasicAuth\s+(.+)$", txt, re.M)]
+	user = re.search(r"^\s*BasicAuthUser\s+(.+)$", txt, re.M)
+	pw = re.search(r"^\s*BasicAuthPassword\s+(.+)$", txt, re.M)
+	if auths:
+		kv("认证", ", ".join(auths))
+	elif user:
+		kv("认证", "%s : %s" % (user.group(1).strip(), pw.group(1).strip() if pw else ""))
+	else:
+		kv("认证", "（无 BasicAuth）")
+	for m in re.finditer(r"^\s*Allow\s+(.+)$", txt, re.M):
+		kv("Allow", m.group(1).strip())
 
 # ---------- 汇总 ----------
 title("汇总")
 kv("已安装", ", ".join(installed) if installed else "无")
 kv("开机自启", ", ".join(x for x in installed if run("systemctl is-enabled %s 2>/dev/null" % x) == "enabled") or "无")
 for name, d in SERVICES:
-	if os.path.isdir(d):
+	if svc_present(name, d):
 		sz = run("du -sh %s 2>/dev/null | awk '{print $1}'" % d)
 		kv("占用 %s" % name, sz or "-")
 
@@ -369,14 +391,125 @@ if not EDIT:
 	sys.exit(0)
 
 # ================= 修改配置 =================
+XRAY_OPTS = [
+	(1, "tcp http (vmess)"), (2, "tcp tls (vmess)"), (3, "tcp reality (vless)"),
+	(4, "websocket (vmess)"), (5, "websocket tls (vmess)"), (6, "websocket tls (vless)"),
+	(7, "mkcp (vmess)"), (8, "mkcp tls (vmess)"), (9, "mkcp tls (vless)"), (10, "trojan tls"),
+]
+
+def xray_opt_of(ib):
+	proto = ib.get("protocol")
+	stream = ib.get("streamSettings") or {}
+	net = stream.get("network", "tcp")
+	sec = stream.get("security", "none")
+	if proto == "trojan":
+		return 10
+	if proto == "vless":
+		if net == "tcp" and sec == "reality":
+			return 3
+		if net == "ws" and sec == "tls":
+			return 6
+		if net == "kcp" and sec == "tls":
+			return 9
+		return 0
+	if proto == "vmess":
+		if net == "tcp" and sec == "none":
+			return 1
+		if net == "tcp" and sec == "tls":
+			return 2
+		if net == "ws" and sec == "none":
+			return 4
+		if net == "ws" and sec == "tls":
+			return 5
+		if net == "kcp" and sec == "none":
+			return 7
+		if net == "kcp" and sec == "tls":
+			return 8
+	return 0
+
+def xray_tls_obj():
+	out = run("/usr/local/xray/xray tls cert 2>/dev/null")
+	try:
+		cert = json.loads(out)
+	except Exception:
+		cert = None
+	if cert:
+		return {"security": "tls", "tlsSettings": {"certificates": [cert]}}
+	return {"security": "tls", "tlsSettings": {}}
+
+def xray_reality_obj(uuid):
+	out = run("/usr/local/xray/xray x25519 2>/dev/null")
+	pvk = re.search(r"Private key:\s*(\S+)", out)
+	if not pvk:
+		return None
+	return {"security": "reality", "realitySettings": {
+		"show": False, "dest": "www.apple.com:443", "xver": 0,
+		"serverNames": ["www.apple.com", "images.apple.com"],
+		"privateKey": pvk.group(1), "shortIds": [uuid.split("-")[-1]],
+	}}
+
+def xray_build_inbound(opt, port, uuid, path="/"):
+	port_s = str(port)
+	tfo = os.path.isfile("/proc/sys/net/ipv4/tcp_fastopen")
+	def vmess_clients(flow=None):
+		c = {"id": uuid, "level": 0, "alterId": 0}
+		if flow:
+			c["flow"] = flow
+		return [c]
+	vm = {"udp": True, "clients": vmess_clients(), "decryption": "none"}
+	vl = {"udp": True, "clients": vmess_clients("xtls-rprx-vision"), "decryption": "none"}
+	if opt == 1:
+		return {"port": port_s, "protocol": "vmess", "settings": vm,
+			"streamSettings": {"sockopt": {"tcpFastOpen": tfo}, "network": "tcp", "tcpSettings": {"header": {"type": "http"}}}}
+	if opt == 2:
+		st = {"sockopt": {"tcpFastOpen": tfo}, "network": "tcp"}
+		st.update(xray_tls_obj())
+		return {"port": port_s, "protocol": "vmess", "settings": vm, "streamSettings": st}
+	if opt == 3:
+		ro = xray_reality_obj(uuid)
+		if not ro:
+			return None
+		st = {"sockopt": {"tcpFastOpen": tfo}, "network": "tcp"}
+		st.update(ro)
+		return {"port": port_s, "protocol": "vless", "settings": vl, "streamSettings": st}
+	if opt == 4:
+		return {"port": port_s, "protocol": "vmess", "settings": vm,
+			"streamSettings": {"sockopt": {"tcpFastOpen": tfo}, "network": "ws", "wsSettings": {"path": path}}}
+	if opt == 5:
+		st = {"sockopt": {"tcpFastOpen": tfo}, "network": "ws", "wsSettings": {"path": path}}
+		st.update(xray_tls_obj())
+		return {"port": port_s, "protocol": "vmess", "settings": vm, "streamSettings": st}
+	if opt == 6:
+		st = {"sockopt": {"tcpFastOpen": tfo}, "network": "ws", "wsSettings": {"path": path}}
+		st.update(xray_tls_obj())
+		return {"port": port_s, "protocol": "vless", "settings": {"udp": True, "clients": vmess_clients(), "decryption": "none"}, "streamSettings": st}
+	if opt == 7:
+		return {"port": port_s, "protocol": "vmess", "settings": vm,
+			"streamSettings": {"network": "kcp", "kcpSettings": {"header": {"type": "utp"}}}}
+	if opt == 8:
+		st = {"network": "kcp", "kcpSettings": {"header": {"type": "none"}}}
+		st.update(xray_tls_obj())
+		return {"port": port_s, "protocol": "vmess", "settings": vm, "streamSettings": st}
+	if opt == 9:
+		st = {"network": "kcp", "kcpSettings": {"header": {"type": "none"}}}
+		st.update(xray_tls_obj())
+		return {"port": port_s, "protocol": "vless", "settings": {"udp": True, "clients": vmess_clients(), "decryption": "none"}, "streamSettings": st}
+	if opt == 10:
+		st = {"network": "tcp"}
+		st.update(xray_tls_obj())
+		return {"port": port_s, "protocol": "trojan",
+			"settings": {"clients": [{"password": uuid, "level": 0}]}, "streamSettings": st}
+	return None
+
 def edit_xray():
 	path = xray_json
 	if not os.path.isfile(path):
 		warn("xray 未安装，跳过")
 		return
-	title("修改 xray（端口 / UUID）")
+	title("修改 xray（协议 / 端口 / UUID）")
 	print("   当前 UUID: %s" % (inbound_info((xray_data.get("inbounds") or [{}])[0], ip)[2] or "-"))
 	ibs = xray_data.get("inbounds") or []
+	uuid_now = inbound_info(ibs[0], ip)[2] if ibs else ""
 	new_ports = {}
 	for i, ib in enumerate(ibs, 1):
 		label, port, uid, link = inbound_info(ib, ip)
@@ -413,8 +546,58 @@ def edit_xray():
 						c["id"] = new_uuid
 					elif "password" in c:
 						c["password"] = new_uuid
+			uuid_now = new_uuid
 			changed = True
 			print("   新 UUID: %s" % new_uuid)
+	ans = ask("   要重新选协议组合吗?(y/N，回车保留现在的协议): ")
+	if ans.lower().startswith("y"):
+		title("xray 协议组合")
+		cur = {}
+		for ib in ibs:
+			o = xray_opt_of(ib)
+			if o and o not in cur:
+				cur[o] = str(ib.get("port", ""))
+		for num, label in XRAY_OPTS:
+			print("   %2d. %-22s %s" % (num, label, ("当前 :%s" % cur[num]) if num in cur else ""))
+		sel_txt = ask("   请输入选项(1-10，空格分隔，回车跳过): ")
+		sel = sorted({int(x) for x in sel_txt.split() if x.isdigit() and 1 <= int(x) <= 10})
+		if not sel:
+			print("   没选任何协议，保留现状")
+		else:
+			new_ibs = []
+			for o in sel:
+				label = [l for n, l in XRAY_OPTS if n == o][0]
+				default_p = cur.get(o, "")
+				p = None
+				while True:
+					ans_p = ask("   [%d] %s 端口%s: " % (o, label, ("(回车沿用 :%s)" % default_p) if default_p else ""))
+					cand = ans_p or default_p
+					if not cand:
+						warn("没填端口，跳过 %s" % label)
+						break
+					if not valid_port(cand):
+						warn("端口要 1-65535 的整数")
+						continue
+					p = cand
+					break
+				if not p:
+					continue
+				wspath = "/"
+				if o in (4, 5, 6):
+					cur_path = "/"
+					for ib in ibs:
+						if xray_opt_of(ib) == o:
+							cur_path = ((ib.get("streamSettings") or {}).get("wsSettings") or {}).get("path") or "/"
+					wspath = ask("   [%d] %s websocket 路径(默认 %s): " % (o, label, cur_path)) or cur_path
+				ib_new = xray_build_inbound(o, p, uuid_now, wspath)
+				if not ib_new:
+					warn("生成 %s 失败（可能是 xray 二进制不可用），跳过" % label)
+					continue
+				new_ibs.append(ib_new)
+			if new_ibs:
+				xray_data["inbounds"] = new_ibs
+				ibs = new_ibs
+				changed = True
 	if not changed:
 		print("   xray 没有改动")
 		return
@@ -425,7 +608,7 @@ def edit_xray():
 		fail("写配置失败: %s" % e)
 		return
 	ports = [str(ib.get("port")) for ib in ibs]
-	restart_check("xray", ports, bak)
+	restart_check("xray", ports, bak, path)
 	try:
 		fresh = json.load(open(path))
 	except Exception:
@@ -500,7 +683,7 @@ def edit_cns():
 	ports = [str(x).lstrip(":") for x in (cns_data.get("Listen_addr") or [])]
 	if cns_data.get("Tls"):
 		ports += [str(x).lstrip(":") for x in (cns_data["Tls"].get("Listen_addr") or [])]
-	restart_check("cns", ports, bak)
+	restart_check("cns", ports, bak, cns_json)
 	print("   现在 cns 端口 %s，加密密码 %s，Proxy_key %s" % (
 		",".join(":" + p for p in ports),
 		cns_data.get("Encrypt_password") or "（空，不加密）",
@@ -547,19 +730,88 @@ def edit_amy4():
 	except Exception as e:
 		fail("写配置失败: %s" % e)
 		return
-	restart_check("amy4", [str(s.get("ListenAddr", "")).lstrip(":")], bak)
+	restart_check("amy4", [str(s.get("ListenAddr", "")).lstrip(":")], bak, amy_json)
 	print("   现在 amy4 端口 %s，ClientKey %s，IPv6 %s" % (
 		s.get("ListenAddr", "-"),
 		", ".join(k for k in (s.get("ClientKeys") or []) if k) or "（空，不校验）",
 		"true" if s.get("IPv6Support") is True else "false"))
 
+def edit_tinyproxy():
+	conf = tinyproxy_conf_path()
+	if not conf:
+		warn("tinyproxy 未安装（本仓库不含该二进制，可 apt install tinyproxy 装上后再来改）")
+		return
+	title("修改 tinyproxy（端口 / BasicAuth 用户名密码）")
+	txt = open(conf, errors="ignore").read()
+	port_m = re.search(r"^\s*Port\s+(\d+)", txt, re.M)
+	auth_m = re.search(r"^\s*BasicAuth\s+(\S+)\s+(\S+)", txt, re.M)
+	user_m = re.search(r"^\s*BasicAuthUser\s+(.+)$", txt, re.M)
+	pw_m = re.search(r"^\s*BasicAuthPassword\s+(.+)$", txt, re.M)
+	cur_port = port_m.group(1) if port_m else ""
+	if auth_m:
+		cur_user, cur_pw = auth_m.group(1), auth_m.group(2)
+	else:
+		cur_user = user_m.group(1).strip() if user_m else ""
+		cur_pw = pw_m.group(1).strip() if pw_m else ""
+	changed = False
+	while True:
+		ans = ask("   当前端口 :%s  新端口(回车不改): " % (cur_port or "-"))
+		if not ans:
+			break
+		if not valid_port(ans):
+			warn("端口要 1-65535 的整数")
+			continue
+		if port_busy(ans) and ans != cur_port:
+			warn(":%s 已经有进程在监听，换一个" % ans)
+			continue
+		cur_port = ans
+		changed = True
+		break
+	ans = ask("   当前 BasicAuth %s  新用户名(回车不改，输入 - 关闭认证): " % (("%s : %s" % (cur_user, cur_pw)) if cur_user else "（无）"))
+	auth_clear = False
+	if ans == "-":
+		auth_clear = True
+		changed = True
+		print("   已关闭 BasicAuth 认证")
+	elif ans:
+		cur_user = ans
+		cur_pw = ask("   BasicAuth 密码: ") or cur_pw
+		changed = True
+	if not changed:
+		print("   tinyproxy 没有改动")
+		return
+	content = txt if txt.endswith("\n") else txt + "\n"
+	lines = content.splitlines()
+	for i, line in enumerate(lines):
+		if re.match(r"^\s*Port\s+", line) and cur_port:
+			lines[i] = re.sub(r"(^\s*Port\s+)\d+", r"\g<1>" + str(cur_port), line)
+	lines = [l for l in lines if not re.match(r"^\s*BasicAuth(User|Password)\s+", l) and not re.match(r"^\s*BasicAuth\s+", l)]
+	if not auth_clear and cur_user:
+		idx = next((i for i, l in enumerate(lines) if re.match(r"^\s*Port\s+", l)), 0)
+		lines.insert(idx + 1, "BasicAuth %s %s" % (cur_user, cur_pw))
+	bak = backup_file(conf)
+	try:
+		with open(conf, "w") as f:
+			f.write("\n".join(lines) + "\n")
+	except Exception as e:
+		fail("写配置失败: %s" % e)
+		return
+	unit = run("systemctl list-unit-files 2>/dev/null | grep -o 'tinyproxy.service' | head -1")
+	if not unit:
+		warn("没找到 tinyproxy.service，配置已改，手动重启 tinyproxy 生效（备份 %s）" % bak)
+		return
+	restart_check("tinyproxy", [cur_port] if cur_port else [], bak, conf)
+	print("   现在 tinyproxy 端口 %s，认证 %s" % (
+		cur_port or "-",
+		"（无）" if auth_clear or not cur_user else "%s : %s" % (cur_user, cur_pw)))
+
 title("修改配置")
-modifiable = [n for n, p in (("xray", xray_json), ("cns", cns_json), ("amy4", amy_json)) if os.path.isfile(p)]
+modifiable = [n for n, p in (("xray", xray_json), ("cns", cns_json), ("amy4", amy_json), ("tinyproxy", tinyproxy_conf_path())) if os.path.isfile(p)]
 if not modifiable:
 	print("   没有已安装的服务，先 sh builds.sh 装一个再来改。")
 	print("")
 	sys.exit(0)
-print("   可修改：1. xray（端口/UUID）  2. cns（端口/TLS端口/加密密码/代理头域）  3. amy4（端口/ClientKey/IPv6）")
+print("   可修改：1. xray（协议/端口/UUID）  2. cns（端口/TLS端口/加密密码/代理头域）  3. amy4（端口/ClientKey/IPv6）  4. tinyproxy（端口/认证）")
 choice = ask("   选项目（多个用空格隔开，直接回车退出）: ")
 sel = set(choice.split())
 done = False
@@ -571,6 +823,9 @@ if "2" in sel and os.path.isfile(cns_json):
 	done = True
 if "3" in sel and os.path.isfile(amy_json):
 	edit_amy4()
+	done = True
+if "4" in sel and tinyproxy_conf_path():
+	edit_tinyproxy()
 	done = True
 if not done:
 	print("   没有改动")

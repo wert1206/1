@@ -20,7 +20,9 @@ sh 1-main/status.sh
 sh status.sh edit
 ```
 
-先打印上面那整屏配置，再进入修改：xray 可改每个入站的端口和 UUID（输入 `-` 随机生成新 UUID）；cns 可改 TCP 端口、TLS 端口（输入 `0` 关闭 TLS）、加密密码（输入 `-` 清空）、代理头域；amy4 可改端口、ClientKey（输入 `-` 清空）、IPv6 开关。改完自动带时间戳备份原配置（`/usr/local/xxx/xxx.json.bak-YYYYMMDD-HHMMSS`）、重启对应服务并确认新端口确实在监听，最后刷新整屏显示新的分享链接。端口被别的进程占用会直接拦下来不让改。
+先打印上面那整屏配置，再进入修改：xray 可改每个入站的端口和 UUID（输入 `-` 随机生成新 UUID）；cns 可改 TCP 端口、TLS 端口（输入 `0` 关闭 TLS）、加密密码（输入 `-` 清空）、代理头域；amy4 可改端口、ClientKey（输入 `-` 清空）、IPv6 开关。xray 还能重选协议组合：1 tcp http / 2 tcp tls / 3 tcp reality / 4 websocket / 5 websocket tls / 6 websocket tls(vless) / 7 mkcp / 8 mkcp tls / 9 mkcp tls(vless) / 10 trojan tls，可多选，回车沿用原来的端口，TLS 自签证书和 reality 密钥用 xray 二进制现场生成；tinyproxy 用第 4 项改端口和 BasicAuth 用户名密码（新版 tinyproxy 语法是 `BasicAuth user pass`）。
+
+改完自动带时间戳备份原配置（`/usr/local/xxx/xxx.json.bak-YYYYMMDD-HHMMSS`）、重启对应服务并确认新端口确实在监听，最后刷新整屏显示新的分享链接。端口被别的进程占用会直接拦下来不让改。
 
 ## 一键安装（与上游 parso 同款菜单，文件全部来自本仓库）
 
