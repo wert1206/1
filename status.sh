@@ -129,7 +129,7 @@ print("\033[45;37m 当前运行配置 \033[0m")
 kv("主机名", host)
 kv("公网地址", (ip or "未知") + ("" if ip_public else "（本机地址，未探测到公网 IP）"))
 kv("查看时间", now)
-kv("脚本版本", "v9 · 支持 edit（改配置/启停服务/7 查看/8 安装/9 卸载/0 关闭）")
+kv("脚本版本", "v10 · 支持 edit（菜单项带运行状态）")
 
 # ---------- 端口 / 进程 ----------
 ss_out = run("ss -lntp")
@@ -905,6 +905,38 @@ def view_config():
 	else:
 		warn("找不到脚本自身路径，刷新不了显示，请重新运行 sh status.sh")
 
+def svc_port(kind):
+	try:
+		if kind == "xray":
+			d = json.load(open(xray_json))
+			return ":" + str((d.get("inbounds") or [{}])[0].get("port", "?"))
+		if kind == "cns":
+			d = json.load(open(cns_json))
+			return (d.get("Listen_addr") or [":?"])[0]
+		if kind == "amy4":
+			d = json.load(open(amy_json))
+			return d["AmyIns"][0]["ANetSettings"]["ListenAddr"]
+		if kind == "tinyproxy":
+			pth = tinyproxy_conf_path()
+			if pth:
+				for line in open(pth):
+					if line.strip().lower().startswith("port "):
+						return ":" + line.split()[1]
+	except Exception:
+		pass
+	return ""
+
+def svc_item(n, label, unit, kind):
+	cfg = {"xray": xray_json, "cns": cns_json, "amy4": amy_json}.get(kind) or tinyproxy_conf_path()
+	if not (cfg and os.path.isfile(cfg)):
+		return "   %d. %s  \033[90m— 未安装\033[0m" % (n, label)
+	st = run("systemctl is-active %s 2>/dev/null" % unit)
+	if st == "active":
+		state = "\033[32m● 运行中 %s\033[0m" % svc_port(kind)
+	else:
+		state = "\033[31m○ 未运行\033[0m"
+	return "   %d. %s  %s" % (n, label, state)
+
 title("修改配置")
 modifiable = [n for n, p in (("xray", xray_json), ("cns", cns_json), ("amy4", amy_json), ("tinyproxy", tinyproxy_conf_path())) if os.path.isfile(p)]
 if not modifiable:
@@ -912,12 +944,14 @@ if not modifiable:
 
 while True:
 	print("")
-	print("   可修改项目：")
-	print("   1. xray（协议/端口/UUID）     2. cns（端口/密码/TLS）")
-	print("   3. amy4（端口/ClientKey）     4. tinyproxy（端口/认证）")
-	print("   5. 停止服务（关自启）         6. 启动服务（开自启）")
-	print("   7. 查看当前配置               8. 安装服务")
-	print("   9. 卸载服务                   0. 关闭")
+	print("   可修改项目（右侧为当前状态）：")
+	print(svc_item(1, "xray（协议/端口/UUID）", "xray", "xray"))
+	print(svc_item(2, "cns（端口/密码/TLS）", "cns", "cns"))
+	print(svc_item(3, "amy4（端口/ClientKey）", "amy4", "amy4"))
+	print(svc_item(4, "tinyproxy（端口/认证）", "tinyproxy", "tinyproxy"))
+	print("   5. 停止服务（关自启）  6. 启动服务（开自启）")
+	print("   7. 查看当前配置        8. 安装服务")
+	print("   9. 卸载服务            0. 关闭")
 	choice = ask("   选项目（多个用空格隔开；输入 0 回车关闭）: ")
 	sel = set(choice.split())
 	if not sel or sel & {"0", "q", "quit", "exit", "关闭"}:
@@ -927,13 +961,13 @@ while True:
 	if "7" in sel:
 		view_config()
 		continue
+	done = False
 	if "8" in sel:
 		run_builds("install")
 		done = True
 	if "9" in sel:
 		run_builds("uninstall")
 		done = True
-	done = False
 	if "1" in sel and os.path.isfile(xray_json):
 		edit_xray()
 		done = True
