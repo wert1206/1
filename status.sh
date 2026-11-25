@@ -28,6 +28,7 @@ CR = "\033[31m"
 CYEL = "\033[33m"
 
 EDIT = os.environ.get("PARSO_EDIT") == "1"
+VERSION = "v10 · 支持 edit（菜单项带运行状态）"
 
 def run(cmd):
 	try:
@@ -129,7 +130,7 @@ print("\033[45;37m 当前运行配置 \033[0m")
 kv("主机名", host)
 kv("公网地址", (ip or "未知") + ("" if ip_public else "（本机地址，未探测到公网 IP）"))
 kv("查看时间", now)
-kv("脚本版本", "v10 · 支持 edit（菜单项带运行状态）")
+kv("脚本版本", VERSION)
 
 # ---------- 端口 / 进程 ----------
 ss_out = run("ss -lntp")

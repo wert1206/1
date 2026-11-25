@@ -1,6 +1,8 @@
 # xray-deploy
 
-## 上手三件套（ccc / pull.sh / go.sh）
+把第三方 parso 一键安装套件（xray / cns / amy4 / tinyproxy）复刻成"文件全部来自本仓库"的安装器，外加一个查看 + 修改一体的运维面板。
+
+## 上手三件套
 
 ```bash
 ccc                      # 日常运维：查看 + 改配置 + 启停服务 + 安装/卸载，一个面板搞定
@@ -8,201 +10,103 @@ sh /root/pull.sh status  # 更新到最新：拉 status.sh 并重装 ccc（1 个
 sh /root/go.sh           # 新机器：拉整包 + 部署 ccc/pull.sh + 直接进安装菜单
 ```
 
-三者都在本仓库根目录：`ccc.sh`（面板短命令本体）、`pull.sh`（更新）、`go.sh`（一键拉取+安装）。空白机器上先取 go.sh 跑一遍，它会把 `ccc.sh`、`pull.sh`、`status.sh` 一起装好：
+三者都在仓库根目录：`ccc.sh`（面板短命令本体）、`pull.sh`（更新）、`go.sh`（一键拉取 + 安装）。
+
+## 首次部署（空白机器）
 
 ```bash
-curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go.sh 'https://api.github.com/repos/abcc123445653/1/contents/go.sh?ref=main' && sh /root/go.sh
+curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go.sh \
+  'https://api.github.com/repos/abcc123445653/1/contents/go.sh?ref=main' && sh /root/go.sh
 ```
 
-## 查看当前运行配置（不重装、不下载整包）
+`go.sh` 依次做三件事：
+
+1. 从 `codeload.github.com` 拉整包（约 20 MB，带进度条）解到 `/root/1-main`，覆盖旧副本；
+2. 从新包里取出 `pull.sh`、`status.sh`、`ccc.sh` 装到 `/root/` 和 `/usr/local/bin/ccc`；
+3. 进入 `parso/builds.sh` 的安装菜单（安装/卸载 → 选项目 → 填端口参数），与上游菜单逐字一致。
+
+只想拉取部署、不进菜单：`sh /root/go.sh --no-menu`。
+
+## 查看当前运行配置
 
 ```bash
 curl -kL --no-progress-meter -O -H 'Accept: application/vnd.github.raw' 'https://api.github.com/repos/abcc123445653/1/contents/status.sh?ref=main' && sh status.sh
 ```
 
-如果之前已经解压过整包（`1-main/`），直接跑本地的：
+已经解压过整包的，直接跑本地：`sh 1-main/status.sh`。
+
+打印内容：各服务是否在跑 / 是否开机自启 / 监听端口 / PID；xray 每个入站的协议、UUID、可直接导入的 vmess/vless/trojan 分享链接；cns 的端口、TLS 端口、加密密码、代理头域；amy4 的端口与 ClientKey；tinyproxy 的端口与认证。公网 IP 用外部探针取，服务器在 NAT 后面也能生成正确链接。顶部有"脚本版本"一行，用来确认跑的是不是最新版。
+
+## 改端口 / 改密码：ccc 面板
 
 ```bash
-sh 1-main/status.sh
+ccc            # 等价于 sh /root/status.sh edit
 ```
 
-会打印：各服务是否在跑 / 是否开机自启 / 监听端口 / PID；xray 每个入站的协议类型、UUID、可直接导入的 vmess/vless/trojan 分享链接；cns 的端口、TLS 端口、加密密码；amy4 的端口与 ClientKey；tinyproxy 的端口与认证。公网 IP 用外部探针取，服务器在 NAT 后面（本机只有 172.x）也能生成正确的链接。
+面板先打印整屏配置，再进菜单；每一项右侧直接显示该服务当前状态（`● 运行中 :端口` / `○ 未运行` / `— 未安装`），每次回到菜单都重新查一遍：
 
-## 改端口 / 改密码（同一屏里先看后改）
+```
+ 修改配置
 
-```bash
-sh status.sh edit
+   可修改项目（右侧为当前状态）：
+   1. xray（协议/端口/UUID）  ● 运行中 :80
+   2. cns（端口/密码/TLS）    ○ 未运行
+   3. amy4（端口/ClientKey）  ○ 未运行
+   4. tinyproxy（端口/认证）  — 未安装
+   5. 停止服务（关自启）  6. 启动服务（开自启）
+   7. 查看当前配置        8. 安装服务
+   9. 卸载服务            0. 关闭
 ```
 
-嫌长可以装个短命令 `ccc`（本体是仓库根目录的 `ccc.sh`，`go.sh` / `pull.sh` 会自动装好；手动装一行命令）：
+- `1`–`4` 改配置：xray 改每个入站的端口/UUID（输入 `-` 随机新 UUID），可整套重选协议（1 tcp http / 2 tcp tls / 3 tcp reality / 4 ws / 5 ws tls / 6 ws tls(vless) / 7 mkcp / 8 mkcp tls / 9 mkcp tls(vless) / 10 trojan tls，多选，回车沿用原端口，TLS 自签证书和 reality 密钥用 xray 现场生成）；cns 改端口/TLS 端口（`0` 关 TLS）/加密密码（`-` 清空）/代理头域；amy4 改端口/ClientKey（`-` 清空）/IPv6；tinyproxy 改端口和 BasicAuth（Debian 12 语法 `BasicAuth 用户 密码`）。
+- `5`/`6` 停止/启动，同时 `systemctl disable`/`enable` 开关开机自启，先选服务编号再回车。
+- `7` 原地重打印整屏；`8`/`9` 直接进安装器的项目菜单（1 tinyproxy / 2 cns / 3 xray / 4 amy4），不用回答"安装还是卸载"；本机没有 `parso/builds.sh` 时先自动拉整包。
+- `0` 关闭退出，什么都不改。
 
-```bash
-curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /usr/local/bin/ccc 'https://api.github.com/repos/abcc123445653/1/contents/ccc.sh?ref=main' && chmod +x /usr/local/bin/ccc
-```
-
-装好后直接输 `ccc` 回车，就进入上面这个“查看 + 修改”面板；`sh status.sh edit` 效果完全一样。
-
-先打印上面那整屏配置，再进入修改；菜单每一项右侧直接显示该服务的当前状态（`● 运行中 :端口` / `○ 未运行` / `— 未安装`），每次回到菜单都会重新查一遍，改完端口立刻能看到新端口在跑。再进入修改：xray 可改每个入站的端口和 UUID（输入 `-` 随机生成新 UUID）；cns 可改 TCP 端口、TLS 端口（输入 `0` 关闭 TLS）、加密密码（输入 `-` 清空）、代理头域；amy4 可改端口、ClientKey（输入 `-` 清空）、IPv6 开关。xray 还能重选协议组合：1 tcp http / 2 tcp tls / 3 tcp reality / 4 websocket / 5 websocket tls / 6 websocket tls(vless) / 7 mkcp / 8 mkcp tls / 9 mkcp tls(vless) / 10 trojan tls，可多选，回车沿用原来的端口，TLS 自签证书和 reality 密钥用 xray 二进制现场生成；tinyproxy 用第 4 项改端口和 BasicAuth 用户名密码（新版 tinyproxy 语法是 `BasicAuth user pass`）。
-
-菜单里还有：`5` 停止服务（同时 `systemctl disable` 关掉开机自启）、`6` 启动服务（同时 `systemctl enable` 打开开机自启）、`7` 查看当前配置（原地重打印整屏）、`8` 安装服务、`9` 卸载服务、`0` 关闭退出（什么都不改）；都是先输入编号再回车，可一次输入多个服务编号，回车取消。停止只是停进程，配置和文件都保留，`6` 随时能拉起来。
-
-`8`/`9` 会直接进入安装器的项目菜单（1 tinyproxy / 2 cns / 3 xray / 4 amy4），选项目回车就装/卸，不用再回答“安装还是卸载”；本机若还没有 `parso/builds.sh`，会先自动拉整包再进菜单。
-
-改完自动带时间戳备份原配置（`/usr/local/xxx/xxx.json.bak-YYYYMMDD-HHMMSS`）、重启对应服务并确认新端口确实在监听，最后刷新整屏显示新的分享链接。端口被别的进程占用会直接拦下来不让改。
+改前自动备份（`/usr/local/xxx/xxx.json.bak-YYYYMMDD-HHMMSS`），改完重启并确认新端口在监听，失败自动回滚；端口被别的进程占用会直接拦下。
 
 ## 拉取最新（pull.sh）
-
-`pull.sh` 就是“从本仓库拉东西”的统一入口，三种用法：
 
 ```bash
 sh /root/pull.sh          # 拉整包到 /root/1-main + 更新面板脚本 + 顺手装好 ccc
 sh /root/pull.sh status   # 只更新面板脚本 status.sh（1 个请求，实测 0.7 秒）
-sh /root/pull.sh kit      # 只拉整包（装 / 升级 parso 用）
-sh /root/pull.sh self     # 只更新 pull.sh 自身到仓库最新版
+sh /root/pull.sh kit      # 只拉整包（装 / 升级 parso 用，带进度条）
+sh /root/pull.sh self     # 只把 pull.sh 自身更新成仓库最新版
 ```
 
-第一次用先把 `pull.sh` 取下来（之后就一直用它）：
+整包走 `codeload.github.com`，不经过 `api.github.com`，不会被 60 次/小时限额卡住；`status` 只取一个文件，限额基本碰不到。接口取不到时 `status` 会自动改从整包里取，不会中断。
+
+首次先把 `pull.sh` 取下来（之后一直用它，含自我更新）：
 
 ```bash
 curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/pull.sh \
-  'https://api.github.com/repos/abcc123445653/1/contents/pull.sh?ref=main' && sh /root/pull.sh
+  'https://api.github.com/repos/abcc123445653/1/contents/pull.sh?ref=main'
 ```
 
-整包走 `codeload.github.com`（约 38 MB，解压 98 MB），不经过 `api.github.com`，不会被 60 次/小时限额卡住；`status` 模式只取一个文件，限额也几乎碰不到。拉完会把 `ccc` 重新指向最新的 `status.sh`，并打印拉到的版本号（如 `v8 · 支持 edit`）。
-
-## 一键安装 / 卸载（与上游 parso 同款菜单，文件全部来自本仓库）
-
-本仓库含两套东西：`parso/`（照上游目录结构的同款菜单安装器）和 `selfhost-kit/`（离线套件）。**来源固定、哈希校验、失败即中止。**
-
-最省事的一个入口 `go.sh`：拉整包 → 部署好 `ccc` / `pull.sh` / `status.sh` → 直接进安装菜单。
-
-```bash
-curl -kL --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go.sh 'https://api.github.com/repos/abcc123445653/1/contents/go.sh?ref=main' && sh /root/go.sh
-```
-
-只拉取和部署、不进菜单：`sh /root/go.sh --no-menu`。
-
-不用 `go.sh` 的等价写法（拉整包后自己进目录）：
-
-```bash
-curl -kL https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main | tar xz && cd 1-main/parso && sh builds.sh
-```
-
-菜单与上游 parso 一致：安装还是卸载 → 选项目（1 tinyproxy / 2 cns / 3 xray / 4 amy4）→ 逐项参数。整包约 38 MB 一次拉完（实测 5-6 秒），之后脚本、init、service、二进制全部从本地 `file://` 读取，不再请求 `api.github.com`，不会被 60 次/小时限额卡住，也不经过任何第三方中转。卸载不问“后台运行吗”、不问安装目录，选完直接卸。
-
-非交互装机可用同仓库的离线套件脚本：`sh selfhost-kit/install.sh --xray-port 8443 --cns-password 新密码`。
-
-## selfhost-kit 说明
-
-- 组件：xray `1.8.13`、cns `0.5`、amy4 `1.7.1`（均为 x86_64 ELF，SHA-256 固定在 `selfhost-kit/MANIFEST.sha256`）
-- 不含：`tinyproxy`（上游那条 URL 返回的是 70 字节跳转页，不是程序；用 `apt install tinyproxy`）
-- 交互脚本：`selfhost-kit/builds.sh`，文案与上游逐字一致
-- 非交互脚本：`selfhost-kit/install.sh`，支持 `--xray-mode tcp-http|tcp-tls|ws|ws-tls`
-
-## xray-deploy 脚本
-
-- 组件：Xray-core（XTLS 官方 Release，MIT）
-- 版本：`v26.11.9`（x86_64 固定 SHA-256 已写入 `install.sh`）
-
-## 一键安装
-
-推荐先取回脚本再执行，不要直接管道给 `sh`：
-
-```bash
-git clone https://github.com/abcc123445653/1.git
-cd 1
-sudo ./install.sh --port 8443 --open-port
-```
-
-装好后脚本会直接打印客户端链接，形如：
+## 目录结构
 
 ```
-vless://<uuid>@<你的IP>:8443?encryption=none&security=none&type=tcp#xray-deploy
+README.md          本说明
+ccc.sh             面板短命令（安装到 /usr/local/bin/ccc）
+pull.sh            拉取最新（整包 / 面板 / 自身）
+go.sh              一键拉取 + 部署 + 进安装菜单
+status.sh          查看 + 修改一体的面板脚本（v10）
+parso/             安装器本体，与上游目录结构一致，二进制随仓库分发
+  builds.sh        安装 / 卸载菜单
+  xray/            xray.sh、xray.init、xray.service、linux_amd64
+  cns/             cns.sh、cns.init、cns.service、linux_amd64
+  amy4/            amy4.sh、amy4.init、amy4.service、linux_amd64
+  tinyproxy/       tinyproxy.sh
+vendor-scripts/    上游原版脚本留档（只作对照，不参与安装）
 ```
 
-启用 TLS（推荐公网使用）：
+## 来源与约束
 
-```bash
-sudo ./install.sh --port 8443 --open-port \
-  --tls-cert /etc/letsencrypt/live/example.com/fullchain.pem \
-  --tls-key  /etc/letsencrypt/live/example.com/privkey.pem \
-  --host example.com
-```
-
-## 参数
-
-| 参数 | 说明 |
-|---|---|
-| `--port <端口>` | 监听端口，默认 `8443`（非特权端口，服务以 `DynamicUser` 运行，不需要 root 常驻） |
-| `--host <地址>` | 生成客户端链接时使用的主机名，默认取本机第一个 IP |
-| `--open-port` | 自动放行 ufw / firewalld 的对应端口 |
-| `--tls-cert` / `--tls-key` | 启用 TLS，需同时提供；只做加载，不代申请证书 |
-
-## 校验机制
-
-`install.sh` 做了三层约束：
-
-1. 全程 HTTPS，`curl --proto '=https' --tlsv1.2`，**不使用 `-k` / `--insecure`**。
-2. 下载后计算 SHA-256，与仓库内固定值比对（x86_64）。
-3. 再与同一 Release 的官方 `.dgst` 比对。
-
-任一不符立即退出，不落盘、不启动。归档本身不进入仓库，仓库里只有脚本和校验值。
-
-arm64 走官方 `.dgst` 比对，没有仓库固定值（避免我写入一个未经实测的数字）。
-
-## 安装后
-
-```bash
-systemctl status xray
-journalctl -u xray -f
-```
-
-配置位于 `/usr/local/xray/config.json`，UUID 在首次安装时随机生成，不使用任何默认口令。
-
-加固项：`DynamicUser`、`NoNewPrivileges`、`ProtectSystem=strict`、`ProtectHome`、`PrivateTmp`、`RestrictAddressFamilies`。
-
-## 卸载
-
-```bash
-sudo ./uninstall.sh --port 8443
-```
-
-停服务、删 unit、删目录，并回收防火墙规则。
-
-## 安全边界
-
-- **VLESS 本身不做传输加密。** 不加 `--tls-cert/--tls-key` 时，流量只在协议层封装，公网裸跑等同于明文。要么配证书，要么只在可信链路内用。
-- 脚本不修改 sysctl、不写 iptables 自定义链、不下载任何二次脚本。
-- 端口放行是显式行为，默认不动防火墙。
-
-## 为什么不含 cns / amy4 / tinyproxy
-
-那套包经字节级核对存在以下问题，不适合作为可分发内容：
-
-| 文件 | 问题 |
-|---|---|
-| `tinyproxy/tinyproxy` | 70 字节 HTML，内容是跳转到 `binary.quicknet.cyou` 的脚本，不是可执行程序 |
-| `tinyproxy/tinyproxy.init` | 与上者哈希完全相同 |
-| `xray.sb-part-1jqqlzv-3` | 文件名含 `sb-part`，27 MB 分片且 ELF 段表偏移越界，无法运行 |
-| `cns.json` / `amy4.json` | 硬编码 `123456` 口令、`ClientKey: ["443"]` |
-| `builds.sh` | 明文 HTTP 取包、`curl -k` 关闭证书校验、`chmod 777` 后 root 执行 |
-
-因此本仓库只收录能从官方渠道验证来源的这一部分。
+- 所有脚本、init、service、二进制都来自本仓库；`parso/builds.sh` 发现同目录有 `xray/xray.sh` 和 `xray/linux_amd64` 时把下载源切成 `file://` 本地路径，安装过程中 0 次网络请求、0 次第三方中转。
+- 整包约 20 MB，一次拉完；早期那条 `aka.doubaocdn.com` 临时 CDN 已过期，全部引用已删除。
+- 旧版 `selfhost-kit/`（自解压离线套件、`bootstrap.sh` / `oneclick.sh` / `run.sh` / `install.sh` / `uninstall.sh`）已整体移除，入口只保留 `go.sh` / `pull.sh` / `ccc` 这一套。
+- 卸载不额外问"后台运行吗"、不问安装目录，选完项目直接卸；停服务先 `systemctl stop` 再 `disable` 再删文件。
 
 ## 许可
 
-脚本部分可自由使用。Xray-core 遵循 MIT，许可证随归档分发至 `/usr/local/xray`。
-
-## 从哪里拉取
-
-`builds.sh` 的取包顺序：
-
-1. 当前目录已有 `install.sh` + `bin/` → 直接用
-2. 有 `git` 且存在部署密钥（默认 `~/.ssh/github_1`）→ `git clone` 本仓库，用仓库内 `selfhost-kit/`（`GH_REPO`、`GH_KEY` 可覆盖）
-3. 两者都没有 → 回退内置压缩包地址（`KIT_URL` / `KIT_SHA`）
-
-私有仓库的克隆依赖部署密钥，新机器上把 `github_1` 放进 `~/.ssh/` 并 `chmod 600` 即可：
-
-    GH_KEY=/root/.ssh/github_1 sh builds.sh
-
-克隆下来的 `bin/` 会按 `selfhost-kit/MANIFEST.sha256` 逐个校验，校验不过直接中止。
+脚本部分可自由使用。Xray-core 遵循 MIT；cns / amy4 的二进制来源与授权见上游，仓库公开分发前请自行确认授权范围。

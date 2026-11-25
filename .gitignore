@@ -15,3 +15,8 @@ ssh-key/
 # 下载缓存
 Xray-linux-*.zip
 *.dgst
+
+# 拉取/解压产物
+repo.tar.gz
+1-main/
+*.new
