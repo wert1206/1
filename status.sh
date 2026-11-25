@@ -129,7 +129,7 @@ print("\033[45;37m 当前运行配置 \033[0m")
 kv("主机名", host)
 kv("公网地址", (ip or "未知") + ("" if ip_public else "（本机地址，未探测到公网 IP）"))
 kv("查看时间", now)
-kv("脚本版本", "v5 · 支持 edit（改配置/启停服务/0 关闭）")
+kv("脚本版本", "v6 · 支持 edit（改配置/启停服务/0 关闭）")
 
 # ---------- 端口 / 进程 ----------
 ss_out = run("ss -lntp")
@@ -834,16 +834,21 @@ def do_power(action):
 		return
 	for n in targets:
 		run("systemctl %s %s 2>&1" % (action, n))
+		if action == "stop":
+			run("systemctl disable %s 2>&1" % n)
+		else:
+			run("systemctl enable %s 2>&1" % n)
 		time.sleep(2)
 		st = run("systemctl is-active %s" % n) or "unknown"
+		en = run("systemctl is-enabled %s 2>/dev/null" % n) or "-"
 		if action == "stop":
 			if st == "inactive":
-				ok("%s 已停止" % n)
+				ok("%s 已停止，开机自启已关闭（%s）" % (n, en))
 			else:
 				fail("%s 停止后状态是 %s" % (n, st))
 		else:
 			if st == "active":
-				ok("%s 已启动" % n)
+				ok("%s 已启动，开机自启已打开（%s）" % (n, en))
 			else:
 				fail("%s 启动失败，状态是 %s" % (n, st))
 				log = run("journalctl -u %s -n 8 --no-pager 2>/dev/null | tail -8" % n)
@@ -857,8 +862,8 @@ if not modifiable:
 	print("")
 	sys.exit(0)
 print("   可修改：1. xray（协议/端口/UUID）  2. cns（端口/TLS端口/加密密码/代理头域）  3. amy4（端口/ClientKey/IPv6）  4. tinyproxy（端口/认证）")
-print("           5. 停止服务（systemctl stop）")
-print("           6. 启动服务（systemctl start）")
+print("           5. 停止服务（同时关闭开机自启）")
+print("           6. 启动服务（同时打开开机自启）")
 print("           0. 关闭（退出，什么都不改）")
 choice = ask("   选项目（多个用空格隔开；输入 0 回车关闭）: ")
 sel = set(choice.split())
