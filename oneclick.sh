@@ -24,13 +24,25 @@ fi
 # 当前目录不是仓库：克隆后再执行
 command -v git >/dev/null 2>&1 || die "缺少 git，请先安装"
 
-REPO="${REPO_URL:-$REPO_DEFAULT}"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT INT TERM
 
-echo "==> 未检测到本地套件，从 $REPO 克隆"
-git clone --depth 1 "$REPO" "$TMP/repo" >/dev/null 2>&1 \
-	|| die "克隆失败。私有仓库需要本机已配置可读它的 SSH 密钥（~/.ssh/config 指定 IdentityFile）"
+# 三种认证方式：GH_TOKEN（fine-grained PAT）> 部署密钥 > 已配置的 SSH
+if [ -n "${GH_TOKEN:-}" ]; then
+	REPO="https://x-access-token:${GH_TOKEN}@github.com/abcc123445653/1.git"
+	echo "==> 用 GH_TOKEN 从 GitHub 克隆仓库"
+	git clone --depth 1 "$REPO" "$TMP/repo" 2>/dev/null \
+		|| die "克隆失败：检查 token 是否有效、是否勾选了该仓库的 Contents: Read"
+else
+	REPO="${REPO_URL:-$REPO_DEFAULT}"
+	GH_KEY="${GH_KEY:-$HOME/.ssh/github_1}"
+	if [ -f "$GH_KEY" ]; then
+		export GIT_SSH_COMMAND="ssh -i $GH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+	fi
+	echo "==> 未检测到本地套件，从 $REPO 克隆"
+	git clone --depth 1 "$REPO" "$TMP/repo" 2>/dev/null \
+		|| die "克隆失败。私有仓库需要 GH_TOKEN，或本机已配置可读它的 SSH 密钥（默认 $GH_KEY）"
+fi
 
 [ -f "$TMP/repo/selfhost-kit/install.sh" ] || die "仓库结构异常：找不到 selfhost-kit/install.sh"
 

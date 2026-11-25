@@ -28,21 +28,32 @@ fi
 # 当前目录没有套件 → 先试着从自己的 GitHub 克隆，失败再回退到压缩包
 if [ ! -f "$KIT/install.sh" ] || [ ! -d "$KIT/bin" ]; then
 	GH_REPO="${GH_REPO:-git@github.com:abcc123445653/1.git}"
+	GH_HTTPS="https://github.com/abcc123445653/1.git"
 	GH_KEY="${GH_KEY:-$HOME/.ssh/github_1}"
 	PKG=$(mktemp -d)
 
-	if command -v git >/dev/null 2>&1 && [ -f "$GH_KEY" ]; then
-		echo "==> 从 GitHub 克隆 $GH_REPO"
-		if GIT_SSH_COMMAND="ssh -i $GH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
-			git clone --depth 1 "$GH_REPO" "$PKG/repo" >/dev/null 2>&1 && \
-			[ -f "$PKG/repo/selfhost-kit/builds.sh" ]; then
+	if command -v git >/dev/null 2>&1; then
+		: > "$PKG/err"
+		if [ -n "${GH_TOKEN:-}" ]; then
+			echo "==> 用 GH_TOKEN 从 GitHub 克隆"
+			git clone --depth 1 "https://x-access-token:${GH_TOKEN}@github.com/abcc123445653/1.git" "$PKG/repo" >/dev/null 2>>"$PKG/err" || true
+		elif [ -f "$GH_KEY" ]; then
+			echo "==> 从 GitHub 克隆 $GH_REPO"
+			GIT_SSH_COMMAND="ssh -i $GH_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+				git clone --depth 1 "$GH_REPO" "$PKG/repo" >/dev/null 2>>"$PKG/err" || true
+		else
+			echo "==> 尝试用已有凭据克隆 $GH_HTTPS"
+			git clone --depth 1 "$GH_HTTPS" "$PKG/repo" >/dev/null 2>>"$PKG/err" || true
+		fi
+		if [ -f "$PKG/repo/selfhost-kit/builds.sh" ]; then
 			echo "==> 使用仓库内套件（bin/ 由 MANIFEST 校验）"
 			RC=0
 			sh "$PKG/repo/selfhost-kit/builds.sh" "$@" || RC=$?
 			rm -rf "$PKG"
 			exit "$RC"
 		fi
-		echo "!! 克隆失败，回退到压缩包来源"
+		echo "!! 克隆失败（$([ -s "$PKG/err" ] && head -1 "$PKG/err" || echo 未知原因)），回退到压缩包来源"
+		rm -rf "$PKG/repo"
 	fi
 
 	KIT_URL="${KIT_URL:-$KIT_URL_DEFAULT}"
