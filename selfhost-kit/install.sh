@@ -131,7 +131,8 @@ vmess_link() {
 
 if [ "$DRY_RUN" = "1" ]; then
 	ROOT_DIR=$(mktemp -d)
-	echo "==> 干跑模式，写入 $ROOT_DIR"else
+	echo "==> 干跑模式，写入 $ROOT_DIR"
+else
 	ROOT_DIR=""
 fi
 
