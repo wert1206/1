@@ -1,5 +1,25 @@
 # xray-deploy
 
+## 查看当前运行配置（不重装、不下载整包）
+
+```bash
+curl -kLO -H 'Accept: application/vnd.github.raw' 'https://api.github.com/repos/abcc123445653/1/contents/status.sh?ref=main' && sh status.sh
+```
+
+如果之前已经解压过整包（`1-main/`），直接跑本地的：
+
+```bash
+sh 1-main/status.sh
+```
+
+会打印：各服务是否在跑 / 是否开机自启 / 监听端口 / PID；xray 每个入站的协议类型、UUID、可直接导入的 vmess/vless/trojan 分享链接；cns 的端口、TLS 端口、加密密码；amy4 的端口与 ClientKey；tinyproxy 的端口与认证。公网 IP 用外部探针取，服务器在 NAT 后面（本机只有 172.x）也能生成正确的链接。
+
+## 一键安装（与上游 parso 同款菜单，文件全部来自本仓库）
+
+```bash
+curl -kL https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main | tar xz && cd 1-main/parso && sh builds.sh
+```
+
 本仓库含两套东西：`selfhost-kit/`（xray + cns + amy4 的离线套件，带上游同款交互菜单）和根目录的 `xray-deploy` 脚本。**来源固定、哈希校验、失败即中止。**
 
 ## 一条命令（交互式，推荐）
