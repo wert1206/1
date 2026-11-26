@@ -128,7 +128,8 @@ get_kit() {
 	fi
 	info "拉整包 $REPO@$BRANCH → $DIR/1-main"
 	TAR_DOWNLOADED=1
-	curl $CURL_K -L --progress-bar --max-time 600 "$TAR" -o "$TARBALL" || die "整包下载失败"
+	curl $CURL_K -L --fail --progress-bar --max-time 600 "$TAR" -o "$TARBALL" || die "整包下载失败（HTTP 错误或网络中断）"
+	tar tzf "$TARBALL" >/dev/null 2>&1 || die "整包不是有效的 tar.gz（可能是错误页或下载不完整），未改动 $DIR/1-main"
 	rm -rf "$DIR/1-main"
 	tar xzf "$TARBALL" -C "$DIR" || die "解压失败"
 	rm -f "$TARBALL"
