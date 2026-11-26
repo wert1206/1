@@ -47,5 +47,16 @@ jobs:
           test ! -e "$TMP/repo.tar.gz"
           echo "部署冒烟通过：$TMP"
 
+      - name: 上传包模式冒烟（tar.gz 解压后运行）
+        run: |
+          set -e
+          git archive --format=tar.gz --prefix=1-main/ -o /tmp/upload.tar.gz HEAD
+          TMP=$(mktemp -d)
+          DIR="$TMP" SKIP_CCC=1 sh go.sh /tmp/upload.tar.gz --no-menu
+          test -x "$TMP/status.sh"
+          test -s "$TMP/status.sh"
+          ls -d "$TMP"/.unpack.* 2>/dev/null && exit 1 || true
+          echo "上传包冒烟通过：$TMP"
+
       - name: 面板冒烟（无服务环境，输入 0 应正常退出）
         run: printf '0\n' | sh status.sh edit

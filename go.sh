@@ -4,6 +4,7 @@
 #   sh go.sh              拉整包 + 部署脚本 + 进安装/卸载菜单
 #   sh go.sh --no-menu    只拉取和部署，不进菜单
 #   sh go.sh --force      远端没变也强制重新下载
+#   sh go.sh 包.tar.gz    直接解压本地上传的压缩包并运行（不联网，支持 .tar.gz/.zip）
 #   sh go.sh --help       显示本用法
 #
 # 环境变量：REPO=abcc123445653/1  BRANCH=main  DIR=/root
@@ -27,6 +28,7 @@ go.sh — 一键拉取 + 部署 + 安装菜单
   sh go.sh              拉整包 + 部署脚本 + 进安装/卸载菜单
   sh go.sh --no-menu    只拉取和部署，不进菜单
   sh go.sh --force      远端没变也强制重新下载
+  sh go.sh 包.tar.gz    解压本地上传的整包（.tar.gz / .tgz / .zip）并运行
   sh go.sh --help       显示本用法
 
 环境变量：
@@ -41,12 +43,19 @@ info() { printf '\033[44;37m %s \033[0m\n' "$*"; }
 die()  { echo "错误: $*" >&2; exit 1; }
 
 menu=1
+ARCHIVE=""
 for a in "$@"; do
 	case "$a" in
 	--no-menu) menu=0 ;;
 	--force)   FORCE=1 ;;
 	-h|--help) usage; exit 0 ;;
-	*)         echo "未知参数: $a（可用 --no-menu / --force / --help）" >&2; exit 2 ;;
+	-*)        echo "未知参数: $a（可用 --no-menu / --force / --help）" >&2; exit 2 ;;
+	*)
+		if [ -n "$ARCHIVE" ]; then
+			echo "只能指定一个压缩包（已指定 $ARCHIVE）" >&2
+			exit 2
+		fi
+		ARCHIVE="$a" ;;
 	esac
 done
 
@@ -58,6 +67,7 @@ fi
 
 cleanup() {
 	if [ "${TAR_DOWNLOADED:-0}" = "1" ]; then rm -f "$TARBALL"; fi
+	if [ -n "${EXT_DIR:-}" ]; then rm -rf "$EXT_DIR"; fi
 	return 0
 }
 trap cleanup 0 1 2 15
@@ -69,6 +79,48 @@ LOCAL_KIT=0
 if [ -n "$SELF_DIR" ] && [ -f "$SELF_DIR/parso/builds.sh" ] && [ -f "$SELF_DIR/status.sh" ]; then
 	KIT="$SELF_DIR"
 	LOCAL_KIT=1
+fi
+
+# 本地上传的压缩包模式：解压 → 校验 → 部署 → 直接运行包里的 go.sh（全程不联网）
+if [ -n "$ARCHIVE" ]; then
+	[ -f "$ARCHIVE" ] || die "压缩包不存在: $ARCHIVE"
+	case "$ARCHIVE" in
+	*.zip|*.tar.gz|*.tgz|*.tar) ;;
+	*) die "只支持 .tar.gz / .tgz / .tar / .zip" ;;
+	esac
+	mkdir -p "$DIR"
+	EXT_DIR=$(mktemp -d "$DIR/.unpack.XXXXXX") || die "无法创建解压目录"
+	info "解压 $ARCHIVE → $DIR/1-main"
+	case "$ARCHIVE" in
+	*.zip)
+		python3 - "$ARCHIVE" "$EXT_DIR" <<'PY' || die "解压失败（需要 python3 处理 zip）"
+import sys, zipfile
+zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])
+PY
+		;;
+	*.tar.gz|*.tgz|*.tar)
+		tar xzf "$ARCHIVE" -C "$EXT_DIR" || die "解压失败"
+		;;
+	esac
+	ROOT=""
+	for d in "$EXT_DIR" "$EXT_DIR"/*; do
+		if [ -f "$d/go.sh" ] && [ -f "$d/parso/builds.sh" ] && [ -f "$d/status.sh" ]; then
+			ROOT="$d"
+			break
+		fi
+	done
+	[ -n "$ROOT" ] || die "压缩包里没找到 go.sh + parso/builds.sh + status.sh，确认上传的是整包"
+	rm -rf "$DIR/1-main"
+	mv "$ROOT" "$DIR/1-main" || die "移动到 $DIR/1-main 失败"
+	rm -rf "$EXT_DIR"
+	EXT_DIR=""
+	info "运行整包里的 go.sh（不再联网）"
+	export DIR REPO BRANCH NO_REV=1
+	if [ "$menu" = "1" ]; then
+		exec sh "$DIR/1-main/go.sh"
+	else
+		exec sh "$DIR/1-main/go.sh" --no-menu
+	fi
 fi
 
 remote_rev() {
@@ -99,7 +151,11 @@ verify_kit() {
 
 
 mkdir -p "$DIR"
-rev=$(remote_rev || true)
+if [ "${NO_REV:-0}" = "1" ]; then
+	rev=""
+else
+	rev=$(remote_rev || true)
+fi
 if [ "$LOCAL_KIT" = "1" ]; then
 	echo "  → 已在整包里（$KIT），跳过下载"
 	verify_kit

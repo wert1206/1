@@ -37,6 +37,25 @@ curl -L --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go.
 
 只想拉取部署、不进菜单：`sh /root/go.sh --no-menu`。
 
+### 直接上传压缩包（不走 GitHub）
+
+在能上网的机器上从 GitHub 下整包（Code → Download ZIP，或 codeload 的 tar.gz），传到服务器：
+
+```bash
+scp 1-main.tar.gz root@<服务器IP>:/root/
+```
+
+服务器上一条命令即可：
+
+```bash
+sh /root/go.sh /root/1-main.tar.gz           # 解压 + 校验 + 部署 + 进安装菜单
+sh /root/go.sh /root/1-main.tar.gz --no-menu # 只部署，不进菜单
+```
+
+支持 `.tar.gz` / `.tgz` / `.tar` / `.zip`（zip 用 python3 解，不需要装 unzip）。流程：解到临时目录 → 找到含 `go.sh` + `parso/builds.sh` + `status.sh` 的那层 → 替换 `/root/1-main` → 校验 `SHA256SUMS` → 部署 `pull.sh`/`status.sh`/`ccc` → 运行包里自带的 `go.sh`。**全程不访问 GitHub、不占 API 额度。**
+
+注意：上传包模式不查远端版本，所以下次在线跑 `sh /root/go.sh` 时会重新拉一次整包并刷新 `.kit-rev`；这之后又恢复增量跳过。
+
 ### 不占 API 额度的引导（额度用完 / 不想用 api.github.com）
 
 ```bash
