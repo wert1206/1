@@ -35,6 +35,7 @@ jobs:
         run: |
           sh go.sh --help >/dev/null
           sh pull.sh --help >/dev/null
+          sh run-upload.sh --help >/dev/null
 
       - name: 部署冒烟（本地整包模式，不写 /usr/local/bin）
         run: |
@@ -52,7 +53,9 @@ jobs:
           set -e
           git archive --format=tar.gz --prefix=1-main/ -o /tmp/upload.tar.gz HEAD
           TMP=$(mktemp -d)
-          DIR="$TMP" SKIP_CCC=1 sh go.sh /tmp/upload.tar.gz --no-menu
+          cp go.sh "$TMP/go.sh"
+          cp /tmp/upload.tar.gz "$TMP/1-main.tar.gz"
+          DIR="$TMP" SKIP_CCC=1 sh run-upload.sh --no-menu
           test -x "$TMP/status.sh"
           test -s "$TMP/status.sh"
           ls -d "$TMP"/.unpack.* 2>/dev/null && exit 1 || true

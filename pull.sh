@@ -107,6 +107,17 @@ install_ccc() {
 	echo "  → /usr/local/bin/ccc   输入 ccc 回车即打开面板"
 }
 
+install_wrapper() {
+	[ -f "$DIR/run-upload.sh" ] || [ -f "$DIR/1-main/run-upload.sh" ] || return 0
+	if [ -f "$DIR/1-main/run-upload.sh" ]; then
+		cp "$DIR/1-main/run-upload.sh" "$DIR/run-upload.sh"
+	elif [ -f "$DIR/run-upload.sh" ]; then
+		return 0
+	fi
+	chmod +x "$DIR/run-upload.sh"
+	echo "  → $DIR/run-upload.sh   上传包一键解压运行"
+}
+
 get_kit() {
 	mkdir -p "$DIR"
 	rev=$(remote_rev || true)
@@ -124,6 +135,7 @@ get_kit() {
 	echo "  → $DIR/1-main   $(du -sh "$DIR/1-main" 2>/dev/null | cut -f1)"
 	verify_kit
 	if [ -n "$rev" ]; then printf '%s\n' "$rev" > "$DIR/1-main/.kit-rev"; fi
+	install_wrapper
 }
 
 get_self() {
@@ -152,6 +164,7 @@ get_status() {
 	mv "$DIR/status.sh.new" "$DIR/status.sh"
 	chmod +x "$DIR/status.sh"
 	install_ccc
+	install_wrapper
 	ver=$(grep -o '"v[0-9][0-9]*[^"]*"' "$DIR/status.sh" | head -1 | tr -d '"')
 	echo "  → $DIR/status.sh   版本 ${ver:-未知}"
 }

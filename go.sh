@@ -180,6 +180,7 @@ fi
 # 部署常用入口，之后直接 ccc / sh pull.sh 就能用
 [ -f "$KIT/pull.sh" ] && cp "$KIT/pull.sh" "$DIR/pull.sh" && chmod +x "$DIR/pull.sh" && echo "  → $DIR/pull.sh"
 [ -f "$KIT/status.sh" ] && cp "$KIT/status.sh" "$DIR/status.sh" && chmod +x "$DIR/status.sh" && echo "  → $DIR/status.sh"
+[ -f "$KIT/run-upload.sh" ] && cp "$KIT/run-upload.sh" "$DIR/run-upload.sh" && chmod +x "$DIR/run-upload.sh" && echo "  → $DIR/run-upload.sh   上传包一键解压运行"
 if [ "${SKIP_CCC:-0}" != "1" ] && [ -d /usr/local/bin ] && [ -f "$DIR/status.sh" ]; then
 	if [ -f "$KIT/ccc.sh" ]; then
 		cp "$KIT/ccc.sh" /usr/local/bin/ccc

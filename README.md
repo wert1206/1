@@ -45,11 +45,16 @@ curl -L --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go.
 scp 1-main.tar.gz root@<服务器IP>:/root/
 ```
 
-服务器上一条命令即可：
+服务器上一条命令即可（`run-upload.sh` 是更短的入口，会自动挑 `/root` 下最新的压缩包）：
 
 ```bash
-sh /root/go.sh /root/1-main.tar.gz           # 解压 + 校验 + 部署 + 进安装菜单
-sh /root/go.sh /root/1-main.tar.gz --no-menu # 只部署，不进菜单
+sh /root/run-upload.sh                 # 自动选最新包 → 解压 + 校验 + 部署 + 进安装菜单
+sh /root/run-upload.sh --no-menu       # 自动选最新包，只部署不进菜单
+sh /root/run-upload.sh /root/1-main.zip # 指定压缩包
+
+# 也可以直接用 go.sh（效果相同）
+sh /root/go.sh /root/1-main.tar.gz
+sh /root/go.sh /root/1-main.tar.gz --no-menu
 ```
 
 支持 `.tar.gz` / `.tgz` / `.tar` / `.zip`（zip 用 python3 解，不需要装 unzip）。流程：解到临时目录 → 找到含 `go.sh` + `parso/builds.sh` + `status.sh` 的那层 → 替换 `/root/1-main` → 校验 `SHA256SUMS` → 部署 `pull.sh`/`status.sh`/`ccc` → 运行包里自带的 `go.sh`。**全程不访问 GitHub、不占 API 额度。**
@@ -175,6 +180,7 @@ NOTICE             第三方组件（parso/ 二进制）授权说明
 .gitattributes     强制 LF，防止 CRLF 弄坏 #!/bin/sh
 pull.sh            拉取最新（整包 / 面板 / 自身）
 go.sh              一键拉取 + 部署 + 进安装菜单
+run-upload.sh      上传压缩包后的一键入口（自动选最新包）
 status.sh          查看 + 修改一体的面板脚本（v12）
 token.sh           存 / 查 / 清 GitHub token（只落本机 /root/.gh_token）
 SHA256SUMS         三个二进制（xray / cns / amy4）的哈希清单，解压后自动校验
