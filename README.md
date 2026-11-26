@@ -2,6 +2,8 @@
 
 把第三方 parso 一键安装套件（xray / cns / amy4 / tinyproxy）复刻成"文件全部来自本仓库"的安装器，外加一个查看 + 修改一体的运维面板。
 
+> 仓库内含第三方二进制。公开分发或再上传前，先读 [PROVENANCE.md](PROVENANCE.md)：Xray 为 MPL-2.0，CNS 上游没有 LICENSE、amy4 为闭源且无许可证声明，后两者目前没有可核验的公开再分发授权。
+
 ## 运行依赖
 
 Debian 12 最小系统上先装三样（面板强依赖 python3，拉取用 git，下载用 curl）：
@@ -193,7 +195,9 @@ sh /root/pull.sh status
 ```
 README.md          本说明
 LICENSE            原创脚本与文档的 MIT 许可
-NOTICE             第三方组件（parso/ 二进制）授权说明
+NOTICE             第三方组件授权说明（摘要）
+PROVENANCE.md      第三方组件来源、版本、SHA-256、许可与再分发状态
+LICENSES/          MPL-2.0 / GPL-2.0 许可证全文
 .gitattributes     强制 LF，防止 CRLF 弄坏 #!/bin/sh
 pull.sh            拉取最新（整包 / 面板 / 自身）
 go.sh              一键拉取 + 部署 + 进安装菜单
@@ -213,7 +217,7 @@ vendor-scripts/    上游原版脚本留档（只作对照，不参与安装）
 
 ## 来源与约束
 
-- 所有脚本、init、service、二进制都来自本仓库；`parso/builds.sh` 发现同目录有 `xray/xray.sh` 和 `xray/linux_amd64` 时把下载源切成 `file://` 本地路径，安装过程中 0 次网络请求、0 次第三方中转。
+- 所有脚本、init、service、二进制都来自本仓库；`parso/builds.sh` 发现同目录有 `xray/xray.sh` 和 `xray/linux_amd64` 时把下载源切成 `file://` 本地路径，安装过程中 0 次网络请求、0 次第三方中转。第三方组件的来源与授权见 [PROVENANCE.md](PROVENANCE.md)。
 - 整包约 19 MB，一次拉完；`go.sh` / `pull.sh` 解压后自动 `sha256sum -c SHA256SUMS`，二进制哈希不符直接中止。早期那条 `aka.doubaocdn.com` 临时 CDN 已过期，全部引用已删除。
 - 顶级脚本（`go.sh` / `pull.sh` / `token.sh` / `status.sh`）默认**校验证书**，不再用 `curl -k`；只有证书异常的老机器才加 `INSECURE=1`（等价 `curl -k`）。`parso/` 内为保持与上游一致仍保留 `-k`，但本地 `file://` 模式安装时不联网。
 - 推 `main` 或打 tag 时 GitHub Actions 会跑：全部 shell 语法检查、`shellcheck -S error`、`SHA256SUMS` 校验、面板 `printf '0\n' | sh status.sh edit` 冒烟、`DIR=临时目录 SKIP_CCC=1 sh go.sh --no-menu` 的部署冒烟，以及 `run-upload.sh` 自动选包 + 解压运行的冒烟。
@@ -222,4 +226,13 @@ vendor-scripts/    上游原版脚本留档（只作对照，不参与安装）
 
 ## 许可
 
-原创脚本与文档采用 MIT 许可，见 [LICENSE](LICENSE)；`parso/` 下第三方二进制的授权说明见 [NOTICE](NOTICE)。Xray-core 遵循 MIT；cns / amy4 的二进制来源与授权见上游，仓库公开分发前请自行确认授权范围。
+原创脚本与文档采用 MIT 许可，见 [LICENSE](LICENSE)。
+
+第三方组件的许可**不是**统一的 MIT：
+
+- `parso/xray/linux_amd64`：Xray-core，MPL-2.0，全文见 [LICENSES/MPL-2.0.txt](LICENSES/MPL-2.0.txt)。仓库内是 `Xray 1.8.13 Custom` 构建，再分发时须注明修改并提供源码获取方式。
+- `parso/cns/linux_amd64`：CuteBi Network Server 0.5，上游仓库没有 LICENSE 文件，未给出明确再分发授权。
+- `parso/amy4/linux_amd64`：amy4Client 1.7.1，闭源，未找到公开上游或许可证声明，未授权公开再分发。
+- `parso/tinyproxy/`：只有安装脚本，没有 tinyproxy 二进制；上游 tinyproxy 使用 GPL-2.0（[LICENSES/GPL-2.0.txt](LICENSES/GPL-2.0.txt)），脚本授权未声明。
+
+逐项来源、SHA-256、复核命令与公开分发前的处理建议，见 [PROVENANCE.md](PROVENANCE.md) 与 [NOTICE](NOTICE)。
