@@ -18,21 +18,21 @@ sh /root/pull.sh status  # 更新到最新：拉 status.sh 并重装 ccc（1 个
 sh /root/go.sh           # 新机器：拉整包 + 部署 ccc/pull.sh + 直接进安装菜单
 ```
 
-三者都在仓库根目录：`ccc.sh`（面板短命令本体）、`pull.sh`（更新）、`go.sh`（一键拉取 + 安装）。
+仓库根目录有四个入口：`ccc.sh`（面板短命令本体）、`pull.sh`（更新）、`go.sh`（一键拉取 + 安装）、`run-upload.sh`（上传压缩包后一键解压运行）。
 
 token 只需配一次（见「配置 GitHub token」），之后上面这些命令**都不用带 token**。
 
 ## 首次部署（空白机器）
 
 ```bash
-curl -L --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go.sh \
+curl -L --fail --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go.sh \
   'https://api.github.com/repos/abcc123445653/1/contents/go.sh?ref=main' && sh /root/go.sh
 ```
 
 `go.sh` 依次做三件事：
 
 1. 从 `codeload.github.com` 拉整包（约 20 MB，带进度条）解到 `/root/1-main`，覆盖旧副本；
-2. 从新包里取出 `pull.sh`、`status.sh`、`ccc.sh` 装到 `/root/` 和 `/usr/local/bin/ccc`；
+2. 从新包里取出 `pull.sh`、`status.sh`、`run-upload.sh` 装到 `/root/`，`ccc.sh` 装到 `/usr/local/bin/ccc`；
 3. 进入 `parso/builds.sh` 的安装菜单（安装/卸载 → 选项目 → 填端口参数），与上游菜单逐字一致。
 
 只想拉取部署、不进菜单：`sh /root/go.sh --no-menu`。
@@ -57,14 +57,29 @@ sh /root/go.sh /root/1-main.tar.gz
 sh /root/go.sh /root/1-main.tar.gz --no-menu
 ```
 
-支持 `.tar.gz` / `.tgz` / `.tar` / `.zip`（zip 用 python3 解，不需要装 unzip）。流程：解到临时目录 → 找到含 `go.sh` + `parso/builds.sh` + `status.sh` 的那层 → 替换 `/root/1-main` → 校验 `SHA256SUMS` → 部署 `pull.sh`/`status.sh`/`ccc` → 运行包里自带的 `go.sh`。**全程不访问 GitHub、不占 API 额度。**
+自动模式按修改时间取最新的 `.tar.gz` / `.tgz` / `.zip`（跳过 `repo.tar.gz`）；`/root` 里有多个旧包时，建议指定文件名或先删旧的。
+
+支持 `.tar.gz` / `.tgz` / `.tar` / `.zip`（zip 用 python3 解，不需要装 unzip）。
+
+流程：解到临时目录 → 找到含 `go.sh` + `parso/builds.sh` + `status.sh` 的那层 → 替换 `/root/1-main` → 校验 `SHA256SUMS` → 部署 `pull.sh`/`status.sh`/`run-upload.sh`/`ccc` → 运行包里自带的 `go.sh`。**全程不访问 GitHub、不占 API 额度。**
 
 注意：上传包模式不查远端版本，所以下次在线跑 `sh /root/go.sh` 时会重新拉一次整包并刷新 `.kit-rev`；这之后又恢复增量跳过。
+
+### 在本地机器上试跑（不写 /root、不装服务）
+
+压缩包在你自己电脑上（Linux / macOS / WSL）时，可以只做部署试跑：
+
+```bash
+tar xzf 1-main.tar.gz && cd 1-main
+DIR="$PWD/.local-run" SKIP_CCC=1 sh go.sh --no-menu
+```
+
+产物在 `.local-run/`（`pull.sh`、`status.sh` 等），不会写 `/root`、不会装 `ccc`、不会动系统服务。xray / cns / amy4 的安装依赖 **root + systemd**，macOS 或手机本地只能这样试跑。
 
 ### 不占 API 额度的引导（额度用完 / 不想用 api.github.com）
 
 ```bash
-rm -rf /root/1-main && curl -L https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main \
+rm -rf /root/1-main && curl -L --fail https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main \
   | tar xz -C /root && sh /root/1-main/go.sh --no-menu
 ```
 
@@ -73,7 +88,9 @@ rm -rf /root/1-main && curl -L https://codeload.github.com/abcc123445653/1/tar.g
 ## 查看当前运行配置
 
 ```bash
-curl -L --no-progress-meter -O -H 'Accept: application/vnd.github.raw' 'https://api.github.com/repos/abcc123445653/1/contents/status.sh?ref=main' && sh status.sh
+curl -L --fail --no-progress-meter -H 'Accept: application/vnd.github.raw' \
+  -o /root/status.sh 'https://api.github.com/repos/abcc123445653/1/contents/status.sh?ref=main' \
+  && sh /root/status.sh
 ```
 
 已经解压过整包的，直接跑本地：`sh 1-main/status.sh`。
@@ -121,7 +138,7 @@ sh /root/pull.sh self     # 只把 pull.sh 自身更新成仓库最新版
 
 整包走 `codeload.github.com`，不经过 `api.github.com`，不会被 60 次/小时限额卡住；`status` 只取一个文件，限额基本碰不到。接口取不到时 `status` 会自动改从整包里取，不会中断。
 
-**增量**：远端 commit 没变就直接跳过整包下载（版本号记在 `/root/1-main/.kit-rev`，用 `git ls-remote` 查、不占 API 限额），重复执行约 1 秒（实测 0.93 秒）；要强制重下加 `--force`（`sh /root/go.sh --force`）或 `FORCE=1 sh /root/pull.sh kit`。
+**增量**：远端 commit 没变就直接跳过整包下载（版本号记在 `/root/1-main/.kit-rev`，用 `git ls-remote` 查、不占 API 限额），重复执行通常不到 1 秒（实测 0.93 秒；Git 端点卡住时最多 5 秒后回退 API）；要强制重下加 `--force`（`sh /root/go.sh --force`）或 `FORCE=1 sh /root/pull.sh kit`。
 
 **限额**：匿名 60 次/小时/IP；配只读 token 后 5000 次/小时。配置方法见下一节，**不要把 token 直接写进命令行**——会留在 shell 历史、`ps` 输出和终端记录里。脚本按 `GH_TOKEN` → `/root/.gh_token` 的顺序自动取，所以配一次之后命令保持清爽：
 
@@ -135,7 +152,7 @@ sh /root/pull.sh status
 首次先把 `pull.sh` 取下来（之后一直用它，含自我更新）：
 
 ```bash
-curl -L --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/pull.sh \
+curl -L --fail --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/pull.sh \
   'https://api.github.com/repos/abcc123445653/1/contents/pull.sh?ref=main'
 ```
 
@@ -154,7 +171,7 @@ curl -L --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/pul
 只读就够：写操作（建 Release、传资产）用临时授权的 classic token，用完即撤。
 
 ```bash
-sh token.sh                 # 粘贴 token 回车（不留在 shell 历史），存到 /root/.gh_token（600）
+sh token.sh                 # 粘贴 token 回车（终端不回显、不进 shell 历史），存到 /root/.gh_token（600）
 sh token.sh --show          # 查看是否已配置（脱敏）与当前额度
 sh token.sh --clear         # 清除 token
 sh token.sh ghp_xxx --bashrc   # 顺便写进 /root/.bashrc 的 export GH_TOKEN
@@ -184,7 +201,7 @@ run-upload.sh      上传压缩包后的一键入口（自动选最新包）
 status.sh          查看 + 修改一体的面板脚本（v12）
 token.sh           存 / 查 / 清 GitHub token（只落本机 /root/.gh_token）
 SHA256SUMS         三个二进制（xray / cns / amy4）的哈希清单，解压后自动校验
-.github/workflows   CI：语法检查、哈希校验、面板冒烟
+.github/workflows   CI：语法检查、哈希校验、部署/上传包/面板冒烟
 parso/             安装器本体，与上游目录结构一致，二进制随仓库分发
   builds.sh        安装 / 卸载菜单
   xray/            xray.sh、xray.init、xray.service、linux_amd64
@@ -199,8 +216,8 @@ vendor-scripts/    上游原版脚本留档（只作对照，不参与安装）
 - 所有脚本、init、service、二进制都来自本仓库；`parso/builds.sh` 发现同目录有 `xray/xray.sh` 和 `xray/linux_amd64` 时把下载源切成 `file://` 本地路径，安装过程中 0 次网络请求、0 次第三方中转。
 - 整包约 19 MB，一次拉完；`go.sh` / `pull.sh` 解压后自动 `sha256sum -c SHA256SUMS`，二进制哈希不符直接中止。早期那条 `aka.doubaocdn.com` 临时 CDN 已过期，全部引用已删除。
 - 顶级脚本（`go.sh` / `pull.sh` / `token.sh` / `status.sh`）默认**校验证书**，不再用 `curl -k`；只有证书异常的老机器才加 `INSECURE=1`（等价 `curl -k`）。`parso/` 内为保持与上游一致仍保留 `-k`，但本地 `file://` 模式安装时不联网。
-- 推 `main` 或打 tag 时 GitHub Actions 会跑：全部 shell 语法检查、`shellcheck -S error`、`SHA256SUMS` 校验、面板 `printf '0\n' | sh status.sh edit` 冒烟，以及 `DIR=临时目录 SKIP_CCC=1 sh go.sh --no-menu` 的部署冒烟。
-- 旧版 `selfhost-kit/`（自解压离线套件、`bootstrap.sh` / `oneclick.sh` / `run.sh` / `install.sh` / `uninstall.sh`）已整体移除，入口只保留 `go.sh` / `pull.sh` / `ccc` 这一套。
+- 推 `main` 或打 tag 时 GitHub Actions 会跑：全部 shell 语法检查、`shellcheck -S error`、`SHA256SUMS` 校验、面板 `printf '0\n' | sh status.sh edit` 冒烟、`DIR=临时目录 SKIP_CCC=1 sh go.sh --no-menu` 的部署冒烟，以及 `run-upload.sh` 自动选包 + 解压运行的冒烟。
+- 旧版 `selfhost-kit/`（自解压离线套件、`bootstrap.sh` / `oneclick.sh` / `run.sh` / `install.sh` / `uninstall.sh`）已整体移除，入口只保留 `go.sh` / `pull.sh` / `run-upload.sh` / `ccc` 这一套。
 - 卸载不额外问"后台运行吗"、不问安装目录，选完项目直接卸；停服务先 `systemctl stop` 再 `disable` 再删文件。
 
 ## 许可
