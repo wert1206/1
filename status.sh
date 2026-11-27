@@ -936,7 +936,7 @@ def ensure_kit():
 	if os.path.isfile("/root/pull.sh"):
 		rc = subprocess.call(["sh", "/root/pull.sh", "kit"])
 	if rc != 0:
-		rc = subprocess.call(["sh", "-c", "curl -L --fail --progress-bar https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main | tar xz -C /root"])
+		rc = subprocess.call(["sh", "-c", "curl -L --fail --progress-bar https://codeload.github.com/wert1206/1/tar.gz/refs/heads/main | tar xz -C /root"])
 	if rc != 0:
 		fail("整包拉取失败，检查网络后重试")
 		return ""

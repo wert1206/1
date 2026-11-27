@@ -8,10 +8,10 @@
 #   FORCE=1 sh pull.sh    远端没变也强制重新下载
 #   INSECURE=1            跳过 TLS 校验（仅老机器/异常 CA 时用）
 #
-# 可用环境变量覆盖：REPO=abcc123445653/1  BRANCH=main  DIR=/root
+# 可用环境变量覆盖：REPO=wert1206/1  BRANCH=main  DIR=/root
 set -eu
 
-REPO="${REPO:-abcc123445653/1}"
+REPO="${REPO:-wert1206/1}"
 BRANCH="${BRANCH:-main}"
 DIR="${DIR:-/root}"
 RAW="https://api.github.com/repos/$REPO/contents"
@@ -42,7 +42,7 @@ pull.sh — 从本仓库拉取最新文件（版本 v3）
   FORCE=1 sh pull.sh    远端没变也强制重新下载
   INSECURE=1            跳过 TLS 校验（仅老机器/异常 CA 时用）
 
-环境变量：REPO=abcc123445653/1  BRANCH=main  DIR=/root
+环境变量：REPO=wert1206/1  BRANCH=main  DIR=/root
 EOF
 }
 

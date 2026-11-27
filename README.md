@@ -28,7 +28,7 @@ token 只需配一次（见「配置 GitHub token」），之后上面这些命�
 
 ```bash
 curl -L --fail --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/go.sh \
-  'https://api.github.com/repos/abcc123445653/1/contents/go.sh?ref=main' && sh /root/go.sh
+  'https://api.github.com/repos/wert1206/1/contents/go.sh?ref=main' && sh /root/go.sh
 ```
 
 `go.sh` 依次做三件事：
@@ -81,7 +81,7 @@ DIR="$PWD/.local-run" SKIP_CCC=1 sh go.sh --no-menu
 ### 不占 API 额度的引导（额度用完 / 不想用 api.github.com）
 
 ```bash
-rm -rf /root/1-main && curl -L --fail https://codeload.github.com/abcc123445653/1/tar.gz/refs/heads/main \
+rm -rf /root/1-main && curl -L --fail https://codeload.github.com/wert1206/1/tar.gz/refs/heads/main \
   | tar xz -C /root && sh /root/1-main/go.sh --no-menu
 ```
 
@@ -91,7 +91,7 @@ rm -rf /root/1-main && curl -L --fail https://codeload.github.com/abcc123445653/
 
 ```bash
 curl -L --fail --no-progress-meter -H 'Accept: application/vnd.github.raw' \
-  -o /root/status.sh 'https://api.github.com/repos/abcc123445653/1/contents/status.sh?ref=main' \
+  -o /root/status.sh 'https://api.github.com/repos/wert1206/1/contents/status.sh?ref=main' \
   && sh /root/status.sh
 ```
 
@@ -155,7 +155,7 @@ sh /root/pull.sh status
 
 ```bash
 curl -L --fail --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /root/pull.sh \
-  'https://api.github.com/repos/abcc123445653/1/contents/pull.sh?ref=main'
+  'https://api.github.com/repos/wert1206/1/contents/pull.sh?ref=main'
 ```
 
 ## 配置 GitHub token（可选）
@@ -166,7 +166,7 @@ curl -L --fail --no-progress-meter -H 'Accept: application/vnd.github.raw' -o /r
 
 1. 打开 <https://github.com/settings/personal-access-tokens/new>（Fine-grained token）；
 2. Token name 随意（如 `server-read`），Expiration 选 90 天；
-3. Repository access → Only select repositories → 只选 `abcc123445653/1`；
+3. Repository access → Only select repositories → 只选 `wert1206/1`；
 4. Permissions → Repository permissions → **Contents: Read-only**，其余全部 `No access`；
 5. Generate token，复制 `github_pat_…`，粘进下面的 `sh token.sh` 回车。
 

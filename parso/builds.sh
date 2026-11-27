@@ -1,5 +1,5 @@
 #!/bin/sh
-BASE="${BASE:-https://api.github.com/repos/abcc123445653/1/contents/parso}"
+BASE="${BASE:-https://api.github.com/repos/wert1206/1/contents/parso}"
 SELF=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 if [ -f "$SELF/xray/xray.sh" ] && [ -f "$SELF/xray/linux_amd64" ]; then
 	BASE="file://$SELF"

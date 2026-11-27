@@ -1,5 +1,5 @@
 #!/bin/bash
-BASE="${BASE:-https://api.github.com/repos/abcc123445653/1/contents/parso}"
+BASE="${BASE:-https://api.github.com/repos/wert1206/1/contents/parso}"
 
 #Stop amy4 & delete amy4 files.
 Delete() {

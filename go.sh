@@ -7,12 +7,12 @@
 #   sh go.sh 包.tar.gz    直接解压本地上传的压缩包并运行（不联网，支持 .tar.gz/.zip）
 #   sh go.sh --help       显示本用法
 #
-# 环境变量：REPO=abcc123445653/1  BRANCH=main  DIR=/root
+# 环境变量：REPO=wert1206/1  BRANCH=main  DIR=/root
 #           FORCE=1（等同 --force）  INSECURE=1（跳过 TLS 校验）
 #           SKIP_CCC=1（不安装 /usr/local/bin/ccc，便于非 root 测试）
 set -eu
 
-REPO="${REPO:-abcc123445653/1}"
+REPO="${REPO:-wert1206/1}"
 BRANCH="${BRANCH:-main}"
 DIR="${DIR:-/root}"
 TAR="https://codeload.github.com/$REPO/tar.gz/refs/heads/$BRANCH"
@@ -32,7 +32,7 @@ go.sh — 一键拉取 + 部署 + 安装菜单
   sh go.sh --help       显示本用法
 
 环境变量：
-  REPO=abcc123445653/1  BRANCH=main  DIR=/root
+  REPO=wert1206/1  BRANCH=main  DIR=/root
   FORCE=1      等同 --force
   INSECURE=1   跳过 TLS 校验（仅老机器/异常 CA 时用）
   SKIP_CCC=1   不安装 /usr/local/bin/ccc（非 root 测试用）

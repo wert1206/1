@@ -1,5 +1,5 @@
 #!/bin/bash
-BASE="${BASE:-https://api.github.com/repos/abcc123445653/1/contents/parso}"
+BASE="${BASE:-https://api.github.com/repos/wert1206/1/contents/parso}"
 
 #Stop xray & delete xray files.
 Delete() {
